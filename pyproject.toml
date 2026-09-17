@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-loop-prime"
+version = "0.1.0"
+description = "Outer goal-loop harness for building new software from a brief"
+readme = "README.md"
+authors = [{ name = "Alessandro Annini" }]
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "python-statemachine>=3.2.1,<4",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/AlessandroAnnini/agentic-loop-prime"
+Repository = "https://github.com/AlessandroAnnini/agentic-loop-prime"
+Issues = "https://github.com/AlessandroAnnini/agentic-loop-prime/issues"
+
+[project.scripts]
+al-prime = "agentic_loop_prime.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# templates/ and skills/ live at the kit root; init.py reads kit_root()
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

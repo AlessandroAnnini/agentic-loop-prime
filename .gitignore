@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+/build/
+.mypy_cache/
+.ruff_cache/
+
+# Studio artifacts if someone inits this checkout
+/.prime/
+/memory/
+/brief/
+/app/
+/.cursor/
+/AGENTS.md
+/CORRECTIONS.md
