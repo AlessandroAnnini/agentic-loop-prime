@@ -15,6 +15,7 @@ from agentic_loop_prime.fingerprint import (
     invalidate_checker_artifacts,
     write_fingerprint,
 )
+from agentic_loop_prime.turn import verify_tree_drifted
 from agentic_loop_prime.paths import log_path, plan_path
 from agentic_loop_prime.plan_log import PLAN_STEP_HEADER
 from agentic_loop_prime.telemetry import (
@@ -96,6 +97,11 @@ def _run_pass(
         return True
     if skill in ("intake", "design"):
         return True
+    if skill == "verify" and ctx.app_dir is not None:
+        drifted, msg = verify_tree_drifted(memory, fid, Path(ctx.app_dir))
+        if drifted:
+            print(f"FAIL: {msg}", file=sys.stderr)
+            return False
     if skill == "verify" and sub == "prove":
         return run_adr_tests(memory, fid, ctx.app_dir, telemetry).passed
     if skill == "verify" and sub == "security":

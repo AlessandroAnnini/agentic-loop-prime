@@ -252,8 +252,8 @@ def test_prompt_block_loads_ux_and_ui_skills() -> None:
         ctx,
         "designing",
     )
-    assert "Load skill: .cursor/skills/prime-design/SKILL.md" in ux
-    assert "Load skill: .cursor/skills/ux-architect/SKILL.md" in ux
+    assert "Load skill: .agents/skills/prime-design/SKILL.md" in ux
+    assert "Load skill: .agents/skills/ux-architect/SKILL.md" in ux
     assert "Write: memory/features/dash/ux.md" in ux
     assert "Close: al-prime done --memory memory --pass" in ux
     ui = prompt_block(
@@ -261,14 +261,14 @@ def test_prompt_block_loads_ux_and_ui_skills() -> None:
         ctx,
         "designing",
     )
-    assert "Load skill: .cursor/skills/prime-design/SKILL.md" in ui
-    assert "Load skill: .cursor/skills/ui-direction/SKILL.md" in ui
+    assert "Load skill: .agents/skills/prime-design/SKILL.md" in ui
+    assert "Load skill: .agents/skills/ui-direction/SKILL.md" in ui
     brief = prompt_block(
         Action(kind="DELEGATE", skill="design", feature_id="dash", substep="brief"),
         ctx,
         "designing",
     )
-    assert "Load skill: .cursor/skills/prime-design/SKILL.md" in brief
+    assert "Load skill: .agents/skills/prime-design/SKILL.md" in brief
     assert "Write: memory/features/dash/brief.md" in brief
     assert "ux-architect" not in brief
     assert "ui-direction" not in brief
@@ -282,8 +282,8 @@ def test_prompt_block_loads_taste_on_ui_build() -> None:
         ctx,
         "building",
     )
-    assert "Load skill: .cursor/skills/prime-build/SKILL.md" in text
-    assert "Load skill: .cursor/skills/design-taste-frontend/SKILL.md" in text
+    assert "Load skill: .agents/skills/prime-build/SKILL.md" in text
+    assert "Load skill: .agents/skills/design-taste-frontend/SKILL.md" in text
     assert "Write: app/ (one plan step 1)" in text
     ctx.features = [{"feature_id": "dash", "surface": "cli"}]
     cli = prompt_block(
@@ -291,7 +291,7 @@ def test_prompt_block_loads_taste_on_ui_build() -> None:
         ctx,
         "building",
     )
-    assert "Load skill: .cursor/skills/prime-build/SKILL.md" in cli
+    assert "Load skill: .agents/skills/prime-build/SKILL.md" in cli
     assert "design-taste-frontend" not in cli
 
 
@@ -302,7 +302,7 @@ def test_prompt_block_intake_charter() -> None:
         ctx,
         "intake",
     )
-    assert "Load skill: .cursor/skills/prime-intake/SKILL.md" in text
+    assert "Load skill: .agents/skills/prime-intake/SKILL.md" in text
     assert "Write: memory/charter.md" in text
     assert "Close: al-prime done --memory memory --pass" in text
 
@@ -319,7 +319,7 @@ def test_prompt_block_security_close_outcomes() -> None:
         ctx,
         "security",
     )
-    assert "Load skill: .cursor/skills/prime-verify/SKILL.md" in text
+    assert "Load skill: .agents/skills/prime-verify/SKILL.md" in text
     assert "Write: memory/features/todo-cli/checks/security.md after tools" in text
     assert "DONE fail" in text
     assert "ERROR, lock stays" in text
@@ -364,5 +364,5 @@ def test_prompt_block_handoff_loads_verify() -> None:
         ctx,
         "building",
     )
-    assert "Load skill: .cursor/skills/prime-verify/SKILL.md" in text
+    assert "Load skill: .agents/skills/prime-verify/SKILL.md" in text
     assert "Close:" not in text

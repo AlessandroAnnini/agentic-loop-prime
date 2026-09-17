@@ -10,6 +10,8 @@ description: >-
 
 Checker, not maker. `al-prime next` prints `HANDOFF verify` when build is done; that is the cue to stop building.
 
+You may run commands and write `memory/features/*/checks`. You must not change product source. Isolation is a fingerprint fail: if `app/` drifted from the build hash, `--pass` is `DONE fail` (lock cleared, reopen build). It is not a stuck lock. Missing baseline on prove stays `ERROR`.
+
 Substeps: `prove` → `security` → `judge`.
 
 1. Confirm you did not change `app/`

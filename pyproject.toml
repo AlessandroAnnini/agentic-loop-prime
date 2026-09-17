@@ -32,7 +32,7 @@ al-prime = "agentic_loop_prime.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# templates/ and skills/ live at the kit root; init.py reads kit_root()
+# AGENTS.md, CLAUDE.md, templates/, and skills/ live at the kit root; init.py reads kit_root()
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

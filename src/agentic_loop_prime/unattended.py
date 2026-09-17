@@ -10,9 +10,15 @@ import sys
 from pathlib import Path
 
 from agentic_loop_prime.context import ProgramContext
+from agentic_loop_prime.done import CloseError, close_frame
 from agentic_loop_prime.persist import load_run_state
 from agentic_loop_prime.schedule import Action, next_frame, prompt_block
 from agentic_loop_prime.telemetry import LoopTelemetry, OpenTelemetryListener
+from agentic_loop_prime.turn import (
+    app_digest,
+    should_pass_after_agent,
+    turn_policy,
+)
 
 HUMAN_PAUSE = {
     "charter_review",
@@ -43,6 +49,7 @@ def write_continue_sh(
     brief_dir: Path | None,
     app_dir: Path | None,
     autonomous: bool,
+    agent_cmd: str = "",
 ) -> Path:
     path = _now_dir(memory) / "continue.sh"
     parts = [
@@ -57,6 +64,8 @@ def write_continue_sh(
         parts.extend(["--app-dir", str(app_dir)])
     if autonomous:
         parts.append("--autonomous")
+    if agent_cmd:
+        parts.extend(["--agent-cmd", agent_cmd])
     path.write_text(
         "#!/usr/bin/env bash\n" + " ".join(shlex.quote(p) for p in parts) + "\n",
         encoding="utf-8",
@@ -70,7 +79,7 @@ def _write_action_files(
     action: Action,
     brief_dir: Path | None,
     app_dir: Path | None,
-) -> tuple[Path, Path]:
+) -> tuple[Path, Path, Path]:
     now = _now_dir(memory)
     ctx = ProgramContext(memory_dir=memory, brief_dir=brief_dir, app_dir=app_dir)
     prompt_path = now / "next-prompt.md"
@@ -79,7 +88,35 @@ def _write_action_files(
     action_path.write_text(
         json.dumps(action.to_dict(), indent=2) + "\n", encoding="utf-8"
     )
-    return prompt_path, action_path
+    policy_path = now / "next-policy.json"
+    policy_path.write_text(
+        json.dumps(turn_policy(action.skill, action.substep), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return prompt_path, action_path, policy_path
+
+
+def _lock_open(memory: Path) -> bool:
+    state = load_run_state(memory)
+    return bool(state.get("lock"))
+
+
+def _close_turn(
+    memory: Path,
+    *,
+    passed: bool,
+    telemetry: LoopTelemetry,
+) -> None:
+    try:
+        result = close_frame(memory, passed=passed, telemetry=telemetry)
+        print(result.format_text())
+        return
+    except CloseError as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        if not _lock_open(memory):
+            raise
+        result = close_frame(memory, passed=False, telemetry=telemetry)
+        print(result.format_text())
 
 
 def run_unattended(
@@ -103,6 +140,7 @@ def run_unattended(
         turns += 1
         budget = budget_once
         budget_once = None
+        tel = telemetry or OpenTelemetryListener()
         try:
             action = next_frame(
                 memory,
@@ -110,7 +148,7 @@ def run_unattended(
                 app_dir=app,
                 loop_budget=budget,
                 autonomous=sticky,
-                telemetry=telemetry or OpenTelemetryListener(),
+                telemetry=tel,
             )
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR {exc}", file=sys.stderr)
@@ -136,7 +174,7 @@ def run_unattended(
             return 2
 
         if action.kind in ("DELEGATE", "HANDOFF"):
-            prompt_path, action_path = _write_action_files(
+            prompt_path, action_path, policy_path = _write_action_files(
                 memory, action, brief, app
             )
             write_continue_sh(
@@ -144,29 +182,48 @@ def run_unattended(
                 brief_dir=brief,
                 app_dir=app,
                 autonomous=sticky,
+                agent_cmd=agent_cmd,
             )
             if action.kind == "HANDOFF":
                 continue
-            if agent_cmd:
-                env = {
-                    **os.environ,
-                    "ALP_PROMPT_FILE": str(prompt_path),
-                    "ALP_ACTION_JSON": str(action_path),
-                }
-                proc = subprocess.run(agent_cmd, shell=True, env=env)
-                if proc.returncode != 0:
-                    print(
-                        f"ERROR: agent-cmd exited {proc.returncode}",
-                        file=sys.stderr,
-                    )
+            if not agent_cmd:
+                continue_path = memory / "now" / "continue.sh"
+                print(
+                    "AGENT_NEEDED: run one skill session using "
+                    f"{prompt_path} then re-invoke via {continue_path}."
+                )
+                return 3
+            before = app_digest(app)
+            env = {
+                **os.environ,
+                "ALP_PROMPT_FILE": str(prompt_path),
+                "ALP_ACTION_JSON": str(action_path),
+                "ALP_POLICY_FILE": str(policy_path),
+            }
+            proc = subprocess.run(agent_cmd, shell=True, env=env)
+            if proc.returncode != 0:
+                print(
+                    f"FAIL: agent-cmd exited {proc.returncode}",
+                    file=sys.stderr,
+                )
+                try:
+                    _close_turn(memory, passed=False, telemetry=tel)
+                except CloseError:
                     return 1
                 continue
-            continue_path = memory / "now" / "continue.sh"
-            print(
-                "AGENT_NEEDED: run one skill session using "
-                f"{prompt_path} then re-invoke via {continue_path}."
+            passed = should_pass_after_agent(
+                skill=action.skill,
+                sub=action.substep,
+                feature_id=action.feature_id or "program",
+                memory=memory,
+                app_dir=app,
+                before_digest=before,
             )
-            return 3
+            try:
+                _close_turn(memory, passed=passed, telemetry=tel)
+            except CloseError:
+                return 1
+            continue
 
         print(f"ERROR: unexpected action {action.kind}", file=sys.stderr)
         return 1

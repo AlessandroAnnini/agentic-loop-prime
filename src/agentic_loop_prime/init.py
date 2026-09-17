@@ -16,10 +16,24 @@ from agentic_loop_prime.persist import (
     load_run_state,
     save_run_state,
 )
-from agentic_loop_prime.telemetry import LoopTelemetry, NoOpTelemetry
+from agentic_loop_prime.skill_roots import (
+    SKILL_NAMES,
+    SUPPORT_SKILLS,
+    SkillSyncError,
+    pin_skill_fields,
+    sync_skills,
+)
 
-SKILL_NAMES = ("runner", "intake", "design", "build", "verify")
-SUPPORT_SKILLS = ("ux-architect", "ui-direction", "design-taste-frontend")
+# Re-exported for studio and tests.
+__all__ = [
+    "InitError",
+    "InitResult",
+    "SKILL_NAMES",
+    "SUPPORT_SKILLS",
+    "init_studio",
+    "kit_root",
+]
+from agentic_loop_prime.telemetry import LoopTelemetry, NoOpTelemetry
 
 
 class InitError(Exception):
@@ -69,6 +83,8 @@ def _kit_rel(studio: Path, kit: Path) -> str:
 def _copy_if_missing(src: Path, dest: Path) -> bool:
     if dest.exists():
         return False
+    if src.resolve() == dest.resolve():
+        return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
     return True
@@ -80,38 +96,6 @@ def _write_if_missing(path: Path, text: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return True
-
-
-def _sync_support_skill(studio: Path, kit: Path, name: str, *, overwrite: bool) -> bool:
-    src = kit / "skills" / name
-    dest = studio / ".cursor" / "skills" / name
-    if not src.is_dir() or not (src / "SKILL.md").is_file():
-        raise InitError(f"missing kit skill {src}")
-    if dest.exists() and not overwrite:
-        return dest.is_dir()
-    if dest.exists():
-        shutil.rmtree(dest)
-    shutil.copytree(src, dest)
-    return True
-
-
-def _sync_skills(studio: Path, kit: Path) -> int:
-    src_root = kit / "skills"
-    dest_root = studio / ".cursor" / "skills"
-    count = 0
-    for name in SKILL_NAMES:
-        src = src_root / name / "SKILL.md"
-        if not src.is_file():
-            raise InitError(f"missing kit skill {src}")
-        dest = dest_root / f"prime-{name}" / "SKILL.md"
-        if _copy_if_missing(src, dest):
-            count += 1
-        elif dest.is_file():
-            count += 1
-    for name in SUPPORT_SKILLS:
-        if _sync_support_skill(studio, kit, name, overwrite=False):
-            count += 1
-    return count
 
 
 def init_studio(
@@ -135,12 +119,13 @@ def init_studio(
     kit = kit_root()
     templates = kit / "templates"
     for required in (
+        kit / "AGENTS.md",
+        kit / "CLAUDE.md",
         templates / "ADR-0005-technology-stack.md",
-        templates / "AGENTS.md",
         templates / "CORRECTIONS.md",
     ):
         if not required.is_file():
-            raise InitError(f"missing kit template {required}")
+            raise InitError(f"missing kit file {required}")
 
     mem.mkdir(parents=True, exist_ok=True)
     brief.mkdir(parents=True, exist_ok=True)
@@ -158,7 +143,8 @@ def init_studio(
     _write_if_missing(decisions, "version: 1\nitems: []\n")
 
     _copy_if_missing(templates / "ADR-0005-technology-stack.md", adr_path(mem))
-    _copy_if_missing(templates / "AGENTS.md", studio / "AGENTS.md")
+    _copy_if_missing(kit / "AGENTS.md", studio / "AGENTS.md")
+    _copy_if_missing(kit / "CLAUDE.md", studio / "CLAUDE.md")
     _copy_if_missing(templates / "CORRECTIONS.md", studio / "CORRECTIONS.md")
 
     gi = templates / "product.gitignore"
@@ -198,7 +184,10 @@ def init_studio(
         state["git"] = default_git_block(app)
         save_run_state(mem, state)
 
-    skills = _sync_skills(studio, kit)
+    try:
+        skills = sync_skills(studio, kit, overwrite=False)
+    except SkillSyncError as exc:
+        raise InitError(str(exc)) from exc
 
     pin = {
         "version": 1,
@@ -208,6 +197,7 @@ def init_studio(
         "brief_dir": str(Path(brief_dir)),
         "app_dir": str(Path(app_dir)),
         "ide": "cursor",
+        **pin_skill_fields(),
     }
     dump_yaml(studio / ".prime" / "manifest.yaml", pin)
 

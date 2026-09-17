@@ -22,6 +22,7 @@ from agentic_loop_prime.fingerprint import (
     app_matches_fingerprint,
     baseline_digest,
 )
+from agentic_loop_prime.turn import verify_tree_drifted
 from agentic_loop_prime.paths import (
     VERDICT_PASS,
     dump_yaml,
@@ -127,10 +128,15 @@ def _require_fingerprint(memory: Path, feature_id: str) -> str:
     return digest
 
 
-def _require_fresh_tree(memory: Path, feature_id: str, app_dir: Path) -> None:
+def _require_fresh_tree(memory: Path, feature_id: str, app_dir: Path) -> bool:
+    """True if the tree matches. Drift is False. Missing baseline raises."""
+    drifted, _msg = verify_tree_drifted(memory, feature_id, app_dir)
+    if drifted:
+        return False
     ok, msg = app_matches_fingerprint(memory, feature_id, app_dir)
     if not ok:
         raise ToolPrepError(msg)
+    return True
 
 
 def _run_commands(
@@ -216,7 +222,9 @@ def run_adr_tests(
     tel = telemetry or NoOpTelemetry()
     app = _require_app(app_dir)
     digest = _require_fingerprint(memory, feature_id)
-    _require_fresh_tree(memory, feature_id, app)
+    if not _require_fresh_tree(memory, feature_id, app):
+        tel.record_verification(False)
+        return ToolResult(passed=False)
     try:
         commands = require_commands(memory)
     except ValueError as exc:
@@ -260,7 +268,9 @@ def run_security_tools(
     tel = telemetry or NoOpTelemetry()
     app = _require_app(app_dir)
     digest = _require_fingerprint(memory, feature_id)
-    _require_fresh_tree(memory, feature_id, app)
+    if not _require_fresh_tree(memory, feature_id, app):
+        tel.record_verification(False)
+        return ToolResult(passed=False)
     try:
         commands = require_security_commands(memory)
     except ValueError as exc:

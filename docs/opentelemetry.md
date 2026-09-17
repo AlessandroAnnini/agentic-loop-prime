@@ -142,7 +142,7 @@ bash scripts/start-jaeger.sh
 
 Open `http://localhost:16686` and search service `agentic-loop-prime`. One prove close should show `invoke_agent` → `loop.iteration` → `execute_tool` rows for UNIT and E2E.
 
-`unattended` passes the same listener into each in-process `next`. HANDOFF saves `telemetry.last_traceparent` so the first verify `next` continues that parent. Later frames are new roots with the same `app.program.id`.
+`unattended` passes the same listener into each in-process `next` and, when `--agent-cmd` is set, into `done`. HANDOFF saves `telemetry.last_traceparent` so the first verify `next` continues that parent. Later frames are new roots with the same `app.program.id`.
 
 Packages: `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`. Attribute names are set by hand. We do not depend on `opentelemetry-semantic-conventions`.
 

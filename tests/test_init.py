@@ -21,6 +21,8 @@ def test_init_creates_slim_layout(tmp_path: Path) -> None:
     assert (studio / "app" / "VERSION").is_file()
     assert (studio / "app" / ".gitignore").is_file()
     assert (studio / "AGENTS.md").is_file()
+    assert (studio / "CLAUDE.md").is_file()
+    assert "AGENTS.md" in (studio / "CLAUDE.md").read_text(encoding="utf-8")
     assert (studio / "CORRECTIONS.md").is_file()
     assert (studio / ".prime" / "manifest.yaml").is_file()
     assert not (studio / "gf-program").exists()
@@ -34,6 +36,8 @@ def test_init_creates_slim_layout(tmp_path: Path) -> None:
     assert state["git"]["auto_ship"] is True
     pin = load_yaml(studio / ".prime" / "manifest.yaml")
     assert pin["ide"] == "cursor"
+    assert pin["skill_root"] == ".agents/skills"
+    assert pin["skill_roots"] == [".agents/skills", ".claude/skills"]
 
 
 def test_init_refuses_without_force(tmp_path: Path) -> None:
@@ -76,18 +80,20 @@ def test_next_after_init_delegates_intake(tmp_path: Path) -> None:
 def test_skills_copied_with_al_prime_next(tmp_path: Path) -> None:
     studio = tmp_path / "studio"
     init_studio(studio)
-    root = studio / ".cursor" / "skills"
-    for name in ("runner", "intake", "design", "build", "verify"):
-        path = root / f"prime-{name}" / "SKILL.md"
-        assert path.is_file()
-        text = path.read_text(encoding="utf-8")
-        assert "al-prime next" in text
-        assert f"name: prime-{name}" in text
-    for name in ("ux-architect", "ui-direction", "design-taste-frontend"):
-        path = root / name / "SKILL.md"
-        assert path.is_file()
-    assert (root / "ux-architect" / "assets" / "UX-BRIEF-template.md").is_file()
-    assert (root / "design-taste-frontend" / "LICENSE").is_file()
+    for root_name in (".agents/skills", ".claude/skills"):
+        root = studio / Path(root_name)
+        for name in ("runner", "intake", "design", "build", "verify"):
+            path = root / f"prime-{name}" / "SKILL.md"
+            assert path.is_file()
+            text = path.read_text(encoding="utf-8")
+            assert "al-prime next" in text
+            assert f"name: prime-{name}" in text
+        for name in ("ux-architect", "ui-direction", "design-taste-frontend"):
+            path = root / name / "SKILL.md"
+            assert path.is_file()
+        assert (root / "ux-architect" / "assets" / "UX-BRIEF-template.md").is_file()
+        assert (root / "design-taste-frontend" / "LICENSE").is_file()
+    assert not (studio / ".cursor" / "skills").exists()
 
 
 def test_cli_init(tmp_path: Path, capsys) -> None:

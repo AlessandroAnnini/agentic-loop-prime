@@ -5,12 +5,12 @@
 
 An outer loop that will not let the builder grade its own homework.
 
-You put notes in a brief. Prime names **one** skill. Cursor does that skill. A file or a process exit decides whether the work counts. Then the next real step, or a stop. `al-prime` never calls a model.
+You put notes in a brief. Prime names **one** skill. An agent (Cursor by default) does that skill. A file or a process exit decides whether the work counts. Then the next real step, or a stop. `al-prime` never calls a model.
 
 ```mermaid
 flowchart LR
   notes["brief/"] --> nextCmd["al-prime next"]
-  nextCmd --> skill["one Cursor skill"]
+  nextCmd --> skill["one skill session"]
   skill --> doneCmd["al-prime done"]
   doneCmd --> gate{"gate"}
   gate -->|pass or fail| nextCmd
@@ -19,9 +19,9 @@ flowchart LR
 
 ## What it is
 
-Prime is a **goal-loop harness** for building **new** software from a brief. The folder you open in Cursor is a *studio*: operator notes, run state, and the product tree sit side by side.
+Prime is a **goal-loop harness** for building **new** software from a brief. The folder you open is a *studio*: operator notes, run state, and the product tree sit side by side.
 
-`al-prime` owns the outer schedule. It prints a Resume block (which skill to load, what to write, how to close) and records the outcome. Cursor owns the inner loop: plan, act, observe. The model forgets between sessions. `memory/` does not.
+`al-prime` owns the outer schedule. It prints a Resume block (which skill to load, what to write, how to close) and records the outcome. The inner agent owns plan, act, observe. The model forgets between sessions. `memory/` does not.
 
 The pipeline is intake, design, build, then an independent verify. Build may edit `app/`. Prove, security, and judge must not. Product git is `app/` only. `memory/` stays beside that repo, never inside it.
 
@@ -29,7 +29,7 @@ A planted `tests_passed: true` does not advance the program. Two fails of the sa
 
 ## What it is not
 
-Prime is not an agent and not a model wrapper. It does not write your product, talk to an API, or invent the next step. Something that can load a `SKILL.md` and run a CLI does that work. Today that something is Cursor.
+Prime is not an agent and not a model wrapper. It does not write your product, talk to an API, or invent the next step. Something that can load a `SKILL.md` and run a CLI does that work. Cursor is the default. Claude Code and VS Code Agent can run the same studio by opening the folder and following Resume.
 
 It is not a tool for reshaping a large existing codebase. You start from notes and an empty `app/`.
 
@@ -37,7 +37,7 @@ It is not a hosted product and not a timer that pokes CI every morning. One prog
 
 ## Five-minute try
 
-You need Python 3.12 and [uv](https://docs.astral.sh/uv/). Cursor is the runtime the skills are written for.
+You need Python 3.12 and [uv](https://docs.astral.sh/uv/). Open the studio folder in Cursor, Claude Code, or VS Code Agent.
 
 ```bash
 git clone https://github.com/AlessandroAnnini/agentic-loop-prime.git
@@ -61,7 +61,7 @@ You will not finish a product in five minutes. You will see the first frame.
 
 ## What you will see
 
-`next --prompt` prints a line such as `DELEGATE intake program substep=charter`, then a Resume block: Load, Write, Close. Open that skill under `.cursor/skills/`, do only that write, and close the frame:
+`next --prompt` prints a line such as `DELEGATE intake program substep=charter`, then a Resume block: Load, Write, Close. Open that skill under `.agents/skills/` (the same files are also copied to `.claude/skills/` for Claude Code), do only that write, and close the frame:
 
 ```bash
 uv run al-prime done --memory memory --pass
@@ -79,13 +79,15 @@ Before prove, fill `memory/adr/ADR-0005-technology-stack.md` with `UNIT_TEST_CMD
 
 ```text
 my-studio/
-├── memory/          run-state, charter, backlog, ADR-0005, feature logs
-├── brief/           your notes (read-only to the agent)
-├── app/             product tree and git root
+├── memory/           run-state, charter, backlog, ADR-0005, feature logs
+├── brief/            your notes (read-only to the agent)
+├── app/              product tree and git root
 ├── AGENTS.md
+├── CLAUDE.md
 ├── CORRECTIONS.md
 ├── .prime/manifest.yaml
-└── .cursor/skills/  prime-* skills plus UX/UI support
+├── .agents/skills/   canonical prime-* plus UX/UI (Resume names these)
+└── .claude/skills/   same skills for Claude Code
 ```
 
 `al-prime init` creates that layout. `al-prime doctor` checks the pin, run-state, skills, commit paths, and ADR commands. `al-prime update` refreshes skills from the kit without wiping `memory/` or `app/` source.
@@ -100,11 +102,26 @@ After a feature ships, `al-prime request-change --intent "..."` queues a new sli
 | `next` | Frame the next DELEGATE, HANDOFF, or STOP |
 | `done` | Close the open frame |
 | `request-change` | Queue a new slice after ship |
-| `unattended` | Run one frame and print the continue path |
+| `unattended` | Frame, optionally run `--agent-cmd`, then close |
 | `update` | Refresh skills and the kit pin |
 | `doctor` | Report studio health |
 
-If you are the agent in the session, the boot protocol is [GETTING_STARTED.md](GETTING_STARTED.md). How the states and gates fit together, with diagrams: [docs/how-it-works.md](docs/how-it-works.md).
+If you are the agent in the session, the boot protocol is [AGENTS.md](AGENTS.md). How the states and gates fit together, with diagrams: [docs/how-it-works.md](docs/how-it-works.md).
+
+## Unattended turns
+
+Default `unattended` still prints `AGENT_NEEDED` and exits 3. You run one skill, then `done`, then `memory/now/continue.sh`.
+
+`--agent-cmd` is the write. Prime closes. Intake and design pass when the Resume write path is nonempty. Build passes when `app/` changed. Verify fails if `app/` drifted from the build fingerprint; it does not run UNIT/E2E on a mutated tree. That fail clears the lock and reopens build.
+
+```bash
+uv run al-prime unattended --memory memory --brief-dir brief --app-dir app \
+  --autonomous --agent-cmd 'bash scripts/agent-claude.sh'
+```
+
+`scripts/agent-claude.sh` runs `claude -p` and does not call `done`. Charter and brief STOPs stay `PAUSE`. `--autonomous` skips those sign-off gates; it is not a substitute for `--agent-cmd`. VS Code Agent can follow Resume in the folder. It is not this closer.
+
+Each frame writes `memory/now/next-policy.json` (`ALP_POLICY_FILE`). `app_writable` is true only for build. Adapters read that file; Prime does not sandbox the process.
 
 ## Tests
 

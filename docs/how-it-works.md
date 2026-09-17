@@ -17,7 +17,7 @@ flowchart LR
     G -->|fail| N
   end
 
-  subgraph inner ["Inner loop: Cursor"]
+  subgraph inner ["Inner loop: agent"]
     P["plan"] --> A["act"]
     A --> O["observe"]
     O --> P
@@ -31,7 +31,7 @@ flowchart LR
 
 ## Studio
 
-The folder you open in Cursor is the studio. Three trees sit side by side.
+The folder you open (Cursor, Claude Code, or VS Code Agent) is the studio. Three trees sit side by side.
 
 ```mermaid
 flowchart TB
@@ -39,7 +39,7 @@ flowchart TB
     brief["brief/  operator notes, read-only"]
     memory["memory/  run-state, charter, backlog, checks"]
     app["app/  product source and git"]
-    skills[".cursor/skills/  prime-* plus UX/UI"]
+    skills[".agents/skills/  prime-* plus UX/UI"]
   end
 
   brief --> memory
@@ -47,7 +47,7 @@ flowchart TB
   skills --> app
 ```
 
-`memory/` is the spine. The model forgets between sessions. The files do not. Product history is `app/` only. Never commit `memory/` or the kit.
+`memory/` is the spine. The model forgets between sessions. The files do not. Product history is `app/` only. Never commit `memory/`, the kit, `.agents/`, or `.claude/`. The same skills are also copied to `.claude/skills/` for Claude Code. Resume names `.agents/skills/`.
 
 ## Pipeline
 
@@ -148,7 +148,7 @@ flowchart LR
   human --> next1
 ```
 
-`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after ship. `unattended` writes `memory/now/` so an operator can run one skill and continue.
+`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after ship. `unattended` without `--agent-cmd` writes `memory/now/` and exits 3 so you can run one skill, `done`, and `continue.sh`. With `--agent-cmd`, the command writes and Prime closes. Verify drift versus the build fingerprint is `DONE fail`, not a stuck lock.
 
 ## Where to go next
 

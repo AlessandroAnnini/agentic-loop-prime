@@ -41,7 +41,7 @@ The rest of this page is that reading, not a recap of Codex tabs.
 
 Osmani’s essay is written for Codex and Claude Code as the runtime. Prime sits one floor **above** that runtime.
 
-We did not take scheduled automations as the primary trigger. `unattended` is a continue script for one skill, not a Triage inbox on a timer.
+We did not take scheduled automations as the primary trigger. `unattended` can close after `--agent-cmd`. Without that flag it still writes `continue.sh` for one skill. It is not a Triage inbox on a timer.
 
 We did not take parallel worktrees or agent teams. One feature, one branch, one open lock.
 

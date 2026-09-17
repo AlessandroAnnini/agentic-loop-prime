@@ -134,7 +134,10 @@ def main(argv: list[str] | None = None) -> int:
     p_unatt.add_argument(
         "--agent-cmd",
         default="",
-        help="Shell command for one skill turn (ALP_PROMPT_FILE, ALP_ACTION_JSON)",
+        help=(
+            "Command does the write; Prime closes. "
+            "Env: ALP_PROMPT_FILE, ALP_ACTION_JSON, ALP_POLICY_FILE"
+        ),
     )
 
     p_upd = sub.add_parser(

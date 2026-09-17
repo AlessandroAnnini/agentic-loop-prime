@@ -13,7 +13,7 @@ Thin wrapper around **design-taste-frontend** for the Prime design phase.
 ## Load
 
 1. This skill (constraints)
-2. `.cursor/skills/design-taste-frontend/SKILL.md` (taste vocabulary)
+2. `.agents/skills/design-taste-frontend/SKILL.md` (taste vocabulary)
 
 ## Done when
 

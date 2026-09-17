@@ -11,7 +11,7 @@ description: >-
 Maker. One `### Step N` only. Brief must already be signed.
 
 1. Read `memory/features/<id>/brief.md` and `plan.md`
-2. If the backlog `surface` is `ui`, load `.cursor/skills/design-taste-frontend/SKILL.md` and follow `ux.md` / `ui.md`
+2. If the backlog `surface` is `ui`, load `.agents/skills/design-taste-frontend/SKILL.md` and follow `ux.md` / `ui.md`
 3. Implement that step under `app/`
 4. Close the frame:
 

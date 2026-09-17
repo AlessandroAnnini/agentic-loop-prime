@@ -25,6 +25,7 @@ from agentic_loop_prime.paths import (
 )
 from agentic_loop_prime.persist import ensure_program_id, start_value_for
 from agentic_loop_prime.phase_outcomes import should_reopen_for_phase_fail
+from agentic_loop_prime.skill_roots import skill_load_line
 from agentic_loop_prime.plan_log import (
     missing_build_log_steps,
     next_incomplete_step,
@@ -155,7 +156,7 @@ def prompt_block(action: Action, ctx: ProgramContext, state: str) -> str:
             f"Switch to the `{action.skill}` checker role (do not edit `app/`)."
         )
         skill = action.skill or "verify"
-        lines.append(f"Load skill: .cursor/skills/prime-{skill}/SKILL.md")
+        lines.append(skill_load_line(skill))
         lines.append("Re-run al-prime next to DELEGATE verify.")
     else:
         lines.extend(_delegate_prompt_lines(action, ctx, memory_arg=memory))
@@ -164,14 +165,14 @@ def prompt_block(action: Action, ctx: ProgramContext, state: str) -> str:
 
 def _support_skill_line(action: Action, ctx: ProgramContext) -> str:
     if action.skill == "design" and action.substep == "ux":
-        return "Load skill: .cursor/skills/ux-architect/SKILL.md"
+        return skill_load_line("ux-architect")
     if action.skill == "design" and action.substep == "ui":
-        return "Load skill: .cursor/skills/ui-direction/SKILL.md"
+        return skill_load_line("ui-direction")
     if action.skill == "build":
         row = ctx._active_row()
         surface = str((row or {}).get("surface") or "cli").lower()
         if surface == "ui":
-            return "Load skill: .cursor/skills/design-taste-frontend/SKILL.md"
+            return skill_load_line("design-taste-frontend")
     return ""
 
 
@@ -209,7 +210,7 @@ def _delegate_prompt_lines(
     fid = action.feature_id or ctx.active_feature or "program"
     lines = [
         f"Run one {skill} session for substep {sub or '-'}.",
-        f"Load skill: .cursor/skills/prime-{skill}/SKILL.md",
+        skill_load_line(skill),
     ]
     extra = _support_skill_line(action, ctx)
     if extra:

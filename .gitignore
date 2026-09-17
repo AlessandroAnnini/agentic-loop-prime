@@ -18,5 +18,6 @@ dist/
 /brief/
 /app/
 /.cursor/
-/AGENTS.md
+/.agents/
+/.claude/
 /CORRECTIONS.md

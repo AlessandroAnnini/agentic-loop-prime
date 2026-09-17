@@ -26,13 +26,14 @@ def _adr(
     memory: Path,
     *,
     e2e: str = 'python3 -c "print(2)"',
+    unit: str = 'python3 -c "print(1)"',
 ) -> None:
     _write(
         memory / "adr" / "ADR-0005-technology-stack.md",
         "\n".join(
             [
                 "```bash",
-                'export UNIT_TEST_CMD=\'python3 -c "print(1)"\'',
+                f"export UNIT_TEST_CMD='{unit}'",
                 f"export E2E_TEST_CMD='{e2e}'",
                 'export SECURITY_SECRETS_CMD=\'python3 -c "print(3)"\'',
                 'export SECURITY_SCA_CMD="true"',
@@ -194,6 +195,28 @@ def test_prove_pass_runs_adr_and_advances(tmp_path: Path) -> None:
     assert nxt.kind == "DELEGATE"
     assert nxt.skill == "verify"
     assert nxt.substep == "security"
+
+
+def test_prove_drift_is_done_fail(tmp_path: Path) -> None:
+    brief, memory, app = _light_studio(tmp_path)
+    marker = memory / "features" / "todo-cli" / "checks" / "HARNESS_RAN"
+    _adr(memory, unit=f"touch {marker}")
+    next_frame(memory, brief_dir=brief, app_dir=app)
+    close_frame(memory, passed=True)
+    prove = _to_prove(memory, brief, app)
+    assert prove.substep == "prove"
+    _write(app / "mutated.py", "x = 1\n")
+    result = close_frame(memory, passed=True)
+    assert result.passed is False
+    state = load_yaml(memory / "run-state.yaml")
+    assert state.get("lock") is None
+    assert not marker.is_file()
+    prove_marker = memory / "features" / "todo-cli" / "checks" / "prove.yaml"
+    if prove_marker.is_file():
+        assert load_yaml(prove_marker).get("tests_passed") is not True
+    again = next_frame(memory, brief_dir=brief, app_dir=app)
+    assert again.kind == "DELEGATE"
+    assert again.skill == "build"
 
 
 def test_prove_fail_does_not_stamp(tmp_path: Path) -> None:

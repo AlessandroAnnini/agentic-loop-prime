@@ -22,8 +22,8 @@ Write:
 
 On standard:
 
-- `ux` — load `.cursor/skills/ux-architect/SKILL.md`
-- `ui` — load `.cursor/skills/ui-direction/SKILL.md`
+- `ux` — load `.agents/skills/ux-architect/SKILL.md`
+- `ui` — load `.agents/skills/ui-direction/SKILL.md`
 
 ## Done when
 

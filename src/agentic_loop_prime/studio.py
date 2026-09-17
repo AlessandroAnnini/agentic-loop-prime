@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,17 +10,23 @@ from agentic_loop_prime import __version__
 from agentic_loop_prime.init import (
     SKILL_NAMES,
     SUPPORT_SKILLS,
-    InitError,
     _copy_if_missing,
     _kit_rel,
     _resolve,
-    _sync_support_skill,
     _write_if_missing,
     kit_root,
 )
 from agentic_loop_prime.adr_commands import require_commands, require_security_commands
 from agentic_loop_prime.paths import adr_path, dump_yaml, load_yaml, run_state_path
 from agentic_loop_prime.persist import load_run_state
+from agentic_loop_prime.skill_roots import (
+    SkillSyncError,
+    apply_pin_skill_fields,
+    skill_named,
+    skill_roots_from_pin,
+    support_skill_present,
+    sync_skills,
+)
 from agentic_loop_prime.telemetry import LoopTelemetry, NoOpTelemetry
 
 
@@ -62,24 +67,10 @@ def _pin_path(studio: Path) -> Path:
 
 
 def _overwrite_skills(studio: Path, kit: Path) -> int:
-    src_root = kit / "skills"
-    dest_root = studio / ".cursor" / "skills"
-    count = 0
-    for name in SKILL_NAMES:
-        src = src_root / name / "SKILL.md"
-        if not src.is_file():
-            raise StudioError(f"missing kit skill {src}")
-        dest = dest_root / f"prime-{name}" / "SKILL.md"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
-        count += 1
-    for name in SUPPORT_SKILLS:
-        try:
-            if _sync_support_skill(studio, kit, name, overwrite=True):
-                count += 1
-        except (InitError, OSError) as exc:
-            raise StudioError(str(exc)) from exc
-    return count
+    try:
+        return sync_skills(studio, kit, overwrite=True)
+    except (SkillSyncError, OSError) as exc:
+        raise StudioError(str(exc)) from exc
 
 
 def _seed_missing_templates(studio: Path, kit: Path, pin: dict[str, Any]) -> None:
@@ -88,8 +79,10 @@ def _seed_missing_templates(studio: Path, kit: Path, pin: dict[str, Any]) -> Non
     app = _resolve(studio, pin.get("app_dir") or "app")
     if (templates / "ADR-0005-technology-stack.md").is_file():
         _copy_if_missing(templates / "ADR-0005-technology-stack.md", adr_path(memory))
-    if (templates / "AGENTS.md").is_file():
-        _copy_if_missing(templates / "AGENTS.md", studio / "AGENTS.md")
+    if (kit / "AGENTS.md").is_file():
+        _copy_if_missing(kit / "AGENTS.md", studio / "AGENTS.md")
+    if (kit / "CLAUDE.md").is_file():
+        _copy_if_missing(kit / "CLAUDE.md", studio / "CLAUDE.md")
     if (templates / "CORRECTIONS.md").is_file():
         _copy_if_missing(templates / "CORRECTIONS.md", studio / "CORRECTIONS.md")
     gi = templates / "product.gitignore"
@@ -119,6 +112,7 @@ def update_studio(
         pin = {"version": 1}
     skills = _overwrite_skills(studio, kit)
     _seed_missing_templates(studio, kit, pin)
+    apply_pin_skill_fields(pin)
     pin["kit_version"] = __version__
     pin["kit_path"] = _kit_rel(studio, kit)
     dump_yaml(pin_file, pin)
@@ -145,13 +139,6 @@ def _commit_paths_include_memory(paths: list[Any]) -> bool:
         if "memory" in parts:
             return True
     return False
-
-
-def _skill_named(studio: Path, name: str) -> bool:
-    path = studio / ".cursor" / "skills" / f"prime-{name}" / "SKILL.md"
-    if not path.is_file():
-        return False
-    return f"name: prime-{name}" in path.read_text(encoding="utf-8")
 
 
 def doctor_next_command(
@@ -231,12 +218,13 @@ def doctor_studio(
             lines.append(f"FAIL: {exc}")
             ok = False
 
+    roots = skill_roots_from_pin(pin)
     for name in SKILL_NAMES:
-        if not _skill_named(studio, name):
+        if not skill_named(studio, name, roots):
             lines.append(f"FAIL: skill prime-{name} missing")
             ok = False
     for name in SUPPORT_SKILLS:
-        if not (studio / ".cursor" / "skills" / name / "SKILL.md").is_file():
+        if not support_skill_present(studio, name, roots):
             lines.append(f"FAIL: skill {name} missing")
             ok = False
 
