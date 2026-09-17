@@ -1,6 +1,7 @@
 # Agentic Loop Prime
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![CI](https://github.com/AlessandroAnnini/agentic-loop-prime/actions/workflows/ci.yml/badge.svg)](https://github.com/AlessandroAnnini/agentic-loop-prime/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB.svg)](https://www.python.org/)
 
 An outer loop that will not let the builder grade its own homework.

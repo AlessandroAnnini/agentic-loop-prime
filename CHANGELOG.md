@@ -6,6 +6,7 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+- CI runs `uv run pytest -q` on Python 3.12 via GitHub Actions.
 - Agent boot is `AGENTS.md`. `CLAUDE.md` points at it. `GETTING_STARTED.md` is a stub for old links. Humans start at the README.
 - Unattended `--agent-cmd` does the write; Prime closes the frame. `continue.sh` keeps `--agent-cmd`. `ALP_POLICY_FILE` is `memory/now/next-policy.json` (`app_writable` is true only for build).
 - Verify `--pass` treats `app/` hash mismatch as `DONE fail` (lock cleared, reopen build). Missing fingerprint on prove stays `ERROR` (lock held).
