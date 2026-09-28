@@ -54,6 +54,13 @@ def _iter_files(app_dir: Path) -> list[Path]:
     return out
 
 
+def app_file_count(app_dir: Path | None) -> int:
+    """Count product files. Skips the same dirs as the fingerprint. Does not hash."""
+    if app_dir is None:
+        return 0
+    return len(_iter_files(Path(app_dir)))
+
+
 def fingerprint_app(app_dir: Path) -> dict[str, str]:
     """Map relative path to sha256 hex digest."""
     root = app_dir.resolve()

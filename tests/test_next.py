@@ -366,3 +366,32 @@ def test_prompt_block_handoff_loads_verify() -> None:
     )
     assert "Load skill: .agents/skills/prime-verify/SKILL.md" in text
     assert "Close:" not in text
+
+
+def test_prompt_block_explore_only_on_large_build(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    app.mkdir()
+    for i in range(30):
+        (app / f"f{i}.py").write_text("x = 1\n", encoding="utf-8")
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    ctx = ProgramContext(memory_dir=memory, app_dir=app)
+    text = prompt_block(
+        Action(kind="DELEGATE", skill="build", feature_id="todo", substep="1"),
+        ctx,
+        "building",
+    )
+    assert "Do not re-scan the tree." in text
+    assert "explore.md" in text
+    prove = prompt_block(
+        Action(kind="DELEGATE", skill="verify", feature_id="todo", substep="prove"),
+        ctx,
+        "verifying",
+    )
+    assert "explore.md" not in prove
+    handoff = prompt_block(
+        Action(kind="HANDOFF", skill="verify", feature_id="todo"),
+        ctx,
+        "building",
+    )
+    assert "explore.md" not in handoff

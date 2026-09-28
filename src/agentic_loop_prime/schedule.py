@@ -26,6 +26,7 @@ from agentic_loop_prime.paths import (
 from agentic_loop_prime.persist import ensure_program_id, start_value_for
 from agentic_loop_prime.phase_outcomes import should_reopen_for_phase_fail
 from agentic_loop_prime.skill_roots import skill_load_line
+from agentic_loop_prime.turn import helper_for
 from agentic_loop_prime.plan_log import (
     missing_build_log_steps,
     next_incomplete_step,
@@ -218,6 +219,9 @@ def _delegate_prompt_lines(
     write = _write_hint(skill, sub, fid)
     if write:
         lines.append(f"Write: {write}")
+    if helper_for(skill, ctx.app_dir) == "explore":
+        root = ctx.memory_dir if ctx.memory_dir is not None else Path("memory")
+        lines.append(f"Read {root / 'now' / 'explore.md'}. Do not re-scan the tree.")
     lines.append(f"Close: al-prime done --memory {memory_arg} --pass")
     if skill == "verify" and sub == "security":
         lines.append(

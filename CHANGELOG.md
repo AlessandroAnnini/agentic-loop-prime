@@ -6,6 +6,7 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+- Prime detects Cursor, VS Code, or Claude Code and runs that editor's adapter. A build frame with 30 or more files in `app/` runs a read-only helper first (`helper: explore`). The VS Code extension is not a runner; `scripts/agent-vscode.sh` uses the standalone `claude` CLI.
 - CI runs `uv run pytest -q` on Python 3.12 via GitHub Actions.
 - Agent boot is `AGENTS.md`. `CLAUDE.md` points at it. `GETTING_STARTED.md` is a stub for old links. Humans start at the README.
 - Unattended `--agent-cmd` does the write; Prime closes the frame. `continue.sh` keeps `--agent-cmd`. `ALP_POLICY_FILE` is `memory/now/next-policy.json` (`app_writable` is true only for build).

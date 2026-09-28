@@ -65,6 +65,22 @@ def test_turn_policy_build_only_writable() -> None:
     build = turn_policy("build", "1")
     assert build["app_writable"] is True
     assert "app/**" in build["writable"]
+    assert build["helper"] == "none"
+
+
+def test_helper_for_build_file_threshold(tmp_path: Path) -> None:
+    from agentic_loop_prime.turn import helper_for
+
+    app = tmp_path / "app"
+    app.mkdir()
+    for i in range(29):
+        _write(app / f"f{i}.py", "x = 1\n")
+    assert helper_for("build", app) == "none"
+    assert helper_for("verify", app) == "none"
+    _write(app / "f29.py", "x = 1\n")
+    assert helper_for("build", app) == "explore"
+    assert helper_for("verify", app) == "none"
+    assert helper_for("build", None) == "none"
 
 
 def test_should_pass_after_agent(tmp_path: Path) -> None:

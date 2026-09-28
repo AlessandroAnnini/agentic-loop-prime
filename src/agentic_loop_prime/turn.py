@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from agentic_loop_prime.fingerprint import (
+    app_file_count,
     app_matches_fingerprint,
     fingerprint_app,
     fingerprint_digest,
     load_fingerprint,
 )
+
+EXPLORE_FILE_THRESHOLD = 30
 
 
 def artifact_path(
@@ -63,16 +66,41 @@ def verify_tree_drifted(
     return True, msg
 
 
-def turn_policy(skill: str, substep: str = "") -> dict[str, Any]:
+def helper_for(skill: str, app_dir: Path | None = None) -> str:
+    """Prime decides. explore only on a large build tree."""
+    if skill != "build":
+        return "none"
+    if app_file_count(app_dir) < EXPLORE_FILE_THRESHOLD:
+        return "none"
+    return "explore"
+
+
+def helper_output_for(helper: str, memory_dir: Path | None = None) -> str:
+    if helper != "explore":
+        return ""
+    root = Path(memory_dir) if memory_dir is not None else Path("memory")
+    return str(root / "now" / "explore.md")
+
+
+def turn_policy(
+    skill: str,
+    substep: str = "",
+    app_dir: Path | None = None,
+    memory_dir: Path | None = None,
+) -> dict[str, Any]:
     app_writable = skill == "build"
     writable = ["memory/**"]
     if app_writable:
         writable.append("app/**")
+    helper = helper_for(skill, app_dir)
     return {
         "skill": skill,
         "substep": substep,
         "app_writable": app_writable,
         "writable": writable,
+        "helper": helper,
+        "helper_output": helper_output_for(helper, memory_dir),
+        "app_dir": str(app_dir) if app_dir else "",
     }
 
 
