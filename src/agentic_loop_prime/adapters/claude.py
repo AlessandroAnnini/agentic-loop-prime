@@ -10,10 +10,10 @@ from agentic_loop_prime.adapters.policy import helper_instructions, load_frame, 
 
 
 def claude_writer_argv(prompt: str, *, app_writable: bool, binary: str = "claude") -> list[str]:
-    argv = [binary, "-p", "--permission-prompts", "none"]
+    argv = [binary, "--permission-prompts", "none"]
     if not app_writable:
         argv.extend(["--disallowedTools", "Edit(app/**)"])
-    argv.append(prompt)
+    argv.extend(["-p", prompt])
     return argv
 
 
@@ -28,7 +28,6 @@ def claude_helper_argv(
         argv.append("--bare")
     argv.extend(
         [
-            "-p",
             "--permission-mode",
             "dontAsk",
             "--permission-prompts",
@@ -37,6 +36,7 @@ def claude_helper_argv(
             "Read,Grep,Glob",
             "--disallowedTools",
             "Edit,Write,Agent",
+            "-p",
             prompt,
         ]
     )

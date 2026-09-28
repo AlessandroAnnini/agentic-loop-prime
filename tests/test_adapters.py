@@ -38,7 +38,10 @@ def test_claude_helper_cannot_edit_or_spawn() -> None:
     assert "Edit" in denied.split(",")
     writer = claude_writer_argv("write", app_writable=False, binary="claude")
     assert "Edit(app/**)" in writer
+    assert writer[writer.index("-p") + 1] == "write"
     assert "--resume" not in writer
+    helper_prompt = argv[argv.index("-p") + 1]
+    assert helper_prompt == "look"
 
 
 def test_claude_helper_bare_only_with_flag() -> None:
