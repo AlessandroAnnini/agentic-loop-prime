@@ -1,6 +1,7 @@
 """Which editor this process is running in. Prime picks the adapter."""
 
 from __future__ import annotations
+
 import shlex
 import sys
 from collections.abc import Mapping
