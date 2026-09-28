@@ -40,7 +40,7 @@ Obey the printed line:
 
 Fill ADR-0005 `UNIT_TEST_CMD`, `E2E_TEST_CMD`, and `SECURITY_*` before prove. Env exports override the ADR. Do not plant `tests_passed: true`. Do not stamp `**Status:** pass` on a draft security report.
 
-`--agent-cmd` is the write. Prime closes. Empty `--agent-cmd` still exits 3 (`AGENT_NEEDED`).
+`--agent-cmd` is the write. Prime closes. With no `--agent-cmd`, Prime picks the editor it is running in. Exit 3 (`AGENT_NEEDED`) only when that editor is unknown.
 
 ```bash
 al-prime unattended --memory memory --brief-dir brief --app-dir app \

@@ -148,7 +148,7 @@ flowchart LR
   human --> next1
 ```
 
-`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after ship. `unattended` without `--agent-cmd` writes `memory/now/` and exits 3 so you can run one skill, `done`, and `continue.sh`. With `--agent-cmd`, the command writes and Prime closes. Verify drift versus the build fingerprint is `DONE fail`, not a stuck lock.
+`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after ship. `unattended` without `--agent-cmd` uses the detected editor. Exit 3 only when the editor is unknown, so you can run one skill, `done`, and `continue.sh`. With `--agent-cmd`, the command writes and Prime closes. Verify drift versus the build fingerprint is `DONE fail`, not a stuck lock.
 
 ## Where to go next
 
