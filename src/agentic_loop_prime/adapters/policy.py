@@ -32,7 +32,10 @@ def load_frame() -> Frame:
     app_writable = True
     policy_path = os.environ.get("ALP_POLICY_FILE") or ""
     if policy_path and Path(policy_path).is_file():
-        data = json.loads(Path(policy_path).read_text(encoding="utf-8"))
+        try:
+            data = json.loads(Path(policy_path).read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"ALP_POLICY_FILE is not JSON: {exc}") from exc
         if isinstance(data, dict):
             helper = str(data.get("helper") or "none")
             raw_out = str(data.get("helper_output") or "").strip()

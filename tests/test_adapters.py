@@ -129,6 +129,23 @@ def test_claude_adapter_requires_binary_and_prompt(tmp_path: Path, monkeypatch, 
     assert "ALP_PROMPT_FILE" in capsys.readouterr().err
 
 
+def test_bad_policy_json_is_an_error(tmp_path: Path, monkeypatch, capsys) -> None:
+    prompt = tmp_path / "prompt.md"
+    prompt.write_text("step\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text("{", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "claude"
+    stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("ALP_PROMPT_FILE", str(prompt))
+    monkeypatch.setenv("ALP_POLICY_FILE", str(policy))
+    assert claude_run() == 1
+    assert "not JSON" in capsys.readouterr().err
+
+
 def test_policy_roundtrip_fields(tmp_path: Path, monkeypatch) -> None:
     prompt = tmp_path / "prompt.md"
     prompt.write_text("step\n", encoding="utf-8")

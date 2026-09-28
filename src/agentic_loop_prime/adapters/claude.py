@@ -49,7 +49,7 @@ def run() -> int:
         return 1
     try:
         frame = load_frame()
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 1
     bare = bool(os.environ.get("ANTHROPIC_API_KEY"))
