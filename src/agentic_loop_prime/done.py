@@ -17,7 +17,7 @@ from agentic_loop_prime.fingerprint import (
 )
 from agentic_loop_prime.turn import verify_tree_drifted
 from agentic_loop_prime.paths import log_path, plan_path
-from agentic_loop_prime.plan_log import PLAN_STEP_HEADER
+from agentic_loop_prime.plan_log import PLAN_STEP_HEADER, plan_has_substantive_step
 from agentic_loop_prime.telemetry import (
     LoopTelemetry,
     NoOpTelemetry,
@@ -51,26 +51,20 @@ class DoneResult:
 
 
 def _tick_plan_step(path: Path, step: int) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     if not path.is_file() or not path.read_text(encoding="utf-8").strip():
-        path.write_text(f"### Step {step}\n\n- [x] done\n", encoding="utf-8")
-        return
+        raise CloseError(f"plan step {step} is missing — write it before closing")
     text = path.read_text(encoding="utf-8")
     header = re.compile(rf"^###\s+Step\s+{step}\b[^\n]*\n", re.MULTILINE)
     match = header.search(text)
     if not match:
-        path.write_text(
-            text.rstrip() + f"\n\n### Step {step}\n\n- [x] done\n",
-            encoding="utf-8",
-        )
-        return
+        raise CloseError(f"plan step {step} is missing — write it before closing")
     start = match.end()
     nxt = PLAN_STEP_HEADER.search(text, start)
     end = nxt.start() if nxt else len(text)
     section = text[start:end]
+    if not re.search(r"^-\s*\[[ xX]\]", section, re.MULTILINE):
+        raise CloseError(f"plan step {step} has no checkbox to tick")
     section = re.sub(r"^(\s*-\s*)\[[ xX]\]", r"\1[x]", section, flags=re.MULTILINE)
-    if not re.search(r"^-\s*\[[xX]\]", section, re.MULTILINE):
-        section = "- [x] done\n" + section
     path.write_text(text[:start] + section + text[end:], encoding="utf-8")
 
 
@@ -83,11 +77,17 @@ def _run_pass(
     skill = str(lock.get("skill") or "")
     sub = str(lock.get("substep") or "")
     fid = str(lock.get("feature_id") or "program")
+    if skill == "build" and sub == "plan":
+        if not plan_has_substantive_step(memory, fid):
+            raise CloseError(
+                "plan has no substantive step — write ### Step N with a real checkbox"
+            )
+        return True
     if skill == "build":
         try:
             step = int(sub)
         except ValueError:
-            step = 1
+            raise CloseError(f"unknown build substep {sub}") from None
         _tick_plan_step(plan_path(memory, fid), step)
         if ctx.app_dir is not None:
             write_fingerprint(memory, fid, Path(ctx.app_dir))

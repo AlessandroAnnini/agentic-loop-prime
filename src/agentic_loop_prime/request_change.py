@@ -18,6 +18,7 @@ from agentic_loop_prime.paths import (
     ui_path,
     ux_path,
 )
+from agentic_loop_prime.context import sync_backlog_status
 from agentic_loop_prime.persist import load_run_state, save_run_state
 
 _SLUG = re.compile(r"[^a-z0-9]+")
@@ -129,12 +130,36 @@ def apply_reopen_design(
         state["features"] = rows
         count = 1
     save_run_state(memory, state)
+    rows = [row for row in (state.get("features") or []) if isinstance(row, dict)]
+    sync_backlog_status(memory, rows)
     return {
         "feature_id": feature_id,
         "design_reopen_count": count,
         "autonomous_escalate_count": auto_count,
         "source": source,
     }
+
+
+def _refuse_if_feature_open(memory: Path) -> None:
+    """A new change waits until the active feature is live."""
+    state = load_run_state(memory)
+    prog_state = str(state.get("program_state") or "idle")
+    if prog_state == "idle":
+        return
+    active = str(state.get("active_feature") or "")
+    if not active:
+        return
+    status = ""
+    for row in state.get("features") or []:
+        if isinstance(row, dict) and str(row.get("feature_id")) == active:
+            status = str(row.get("status") or "")
+            break
+    if status == "live":
+        return
+    label = status or "open"
+    raise RequestChangeError(
+        f"feature {active} is still {label} — finish it before requesting a change"
+    )
 
 
 def request_change(
@@ -167,6 +192,8 @@ def request_change(
     surf = (surface or "cli").lower()
     if surf not in ("ui", "cli", "api", "library"):
         raise RequestChangeError(f"invalid surface {surface}")
+
+    _refuse_if_feature_open(memory)
 
     fid = _slug(name or text)
     backlog = load_yaml(backlog_path(memory))

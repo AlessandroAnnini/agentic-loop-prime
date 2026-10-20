@@ -29,6 +29,8 @@ SKIP_DIR_NAMES = {
     ".ruff_cache",
     "dist",
     "build",
+    ".gradle",
+    ".kotlin",
     ".coverage",
     "htmlcov",
     ".tox",

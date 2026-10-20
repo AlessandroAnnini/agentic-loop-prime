@@ -76,7 +76,7 @@ def slim_light_memory(tmp_path: Path) -> Path:
     )
     _write(
         feat / "plan.md",
-        "# Plan\n\n### Step 1 — Scaffold\n\n- [x] done\n",
+        "# Plan\n\n### Step 1 — Scaffold\n\n- [x] scaffold the module\n",
     )
     _write(feat / "log.jsonl", '{"step": 1, "verification_pass": true}\n')
     _write(

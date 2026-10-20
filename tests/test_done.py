@@ -125,6 +125,52 @@ def test_done_fail_retries_same_build_step(tmp_path: Path) -> None:
     assert again.substep == "1"
 
 
+def test_done_pass_empty_plan_does_not_invent_step(tmp_path: Path) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    _write(
+        memory / "run-state.yaml",
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "program_state": "idle",
+                "active_feature": "todo-cli",
+                "charter_signed": True,
+                "research_track": "none",
+                "lock": None,
+                "loop": {"initial": 20, "remaining": 20},
+                "features": [
+                    {
+                        "feature_id": "todo-cli",
+                        "status": "pending",
+                        "design_track": "light",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    _write(memory / "charter.md", "# Charter\n\nTodo.\n")
+    _write(
+        memory / "backlog.yaml",
+        "version: 1\nfeatures:\n  - id: todo-cli\n    design_track: light\n",
+    )
+    feat = memory / "features" / "todo-cli"
+    _write(feat / "brief.md", "# Brief\n\n**Status:** signed\n")
+    framed = next_frame(memory, brief_dir=brief)
+    assert framed.substep == "plan"
+    try:
+        close_frame(memory, passed=True)
+        raise AssertionError("expected CloseError")
+    except CloseError:
+        pass
+    assert not (feat / "plan.md").exists()
+    state = load_yaml(memory / "run-state.yaml")
+    assert state["lock"]["transition_id"] == framed.transition_id
+
+
 def test_done_pass_ticks_build_step(tmp_path: Path) -> None:
     brief = tmp_path / "brief"
     brief.mkdir()

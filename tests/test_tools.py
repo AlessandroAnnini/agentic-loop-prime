@@ -243,7 +243,7 @@ def test_prove_fail_does_not_stamp(tmp_path: Path) -> None:
 
 def test_prove_without_fingerprint_keeps_lock(tmp_path: Path) -> None:
     brief, memory, app = _light_studio(
-        tmp_path, plan="### Step 1\n\n- [x] done\n"
+        tmp_path, plan="### Step 1\n\n- [x] scaffold the module\n"
     )
     _write(
         memory / "features" / "todo-cli" / "log.jsonl",
@@ -267,7 +267,7 @@ def test_prove_without_fingerprint_keeps_lock(tmp_path: Path) -> None:
 
 def test_planted_prove_marker_does_not_advance(tmp_path: Path) -> None:
     brief, memory, app = _light_studio(
-        tmp_path, plan="### Step 1\n\n- [x] done\n"
+        tmp_path, plan="### Step 1\n\n- [x] scaffold the module\n"
     )
     _write(
         memory / "features" / "todo-cli" / "log.jsonl",

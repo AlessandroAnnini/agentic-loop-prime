@@ -30,6 +30,10 @@ def test_idle_to_done_slim_memory(light_context: ProgramContext) -> None:
     program = Program(light_context, listeners=[recorder])
     assert current_state(program) == "idle"
     for event in HAPPY_PATH:
+        if event == "all_done":
+            for row in light_context.features:
+                if str(row.get("feature_id")) == light_context.active_feature:
+                    row["status"] = "live"
         program.send(event)
     assert current_state(program) == "done"
     assert program.done.is_active

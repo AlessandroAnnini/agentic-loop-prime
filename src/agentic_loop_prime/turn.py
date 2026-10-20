@@ -88,7 +88,7 @@ def turn_policy(
     app_dir: Path | None = None,
     memory_dir: Path | None = None,
 ) -> dict[str, Any]:
-    app_writable = skill == "build"
+    app_writable = skill == "build" and substep != "plan"
     writable = ["memory/**"]
     if app_writable:
         writable.append("app/**")
@@ -115,6 +115,10 @@ def should_pass_after_agent(
 ) -> bool:
     if skill in ("intake", "design"):
         return artifact_ready(memory, skill, sub, feature_id)
+    if skill == "build" and sub == "plan":
+        from agentic_loop_prime.plan_log import plan_has_substantive_step
+
+        return plan_has_substantive_step(memory, feature_id)
     if skill == "build":
         return app_digest(app_dir) != before_digest
     if skill == "verify":

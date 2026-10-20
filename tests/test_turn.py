@@ -58,12 +58,30 @@ def test_verify_tree_drifted(tmp_path: Path) -> None:
     assert "drifted" in msg
 
 
+def test_tool_cache_writes_are_not_drift(tmp_path: Path) -> None:
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    app = tmp_path / "app"
+    app.mkdir()
+    _write(app / "main.py", "print(1)\n")
+    write_fingerprint(memory, "todo-cli", app)
+    _write(app / ".gradle" / "cache.bin", "gradle\n")
+    _write(app / ".kotlin" / "sessions" / "cache.bin", "kotlin\n")
+    drifted, _ = verify_tree_drifted(memory, "todo-cli", app)
+    assert drifted is False
+    _write(app / "src" / "App.kt", "class App\n")
+    drifted, msg = verify_tree_drifted(memory, "todo-cli", app)
+    assert drifted is True
+    assert "drifted" in msg
+
+
 def test_turn_policy_build_only_writable() -> None:
     verify = turn_policy("verify", "prove")
     assert verify["app_writable"] is False
     assert verify["writable"] == ["memory/**"]
     build = turn_policy("build", "1")
     assert build["app_writable"] is True
+    assert turn_policy("build", "plan")["app_writable"] is False
     assert "app/**" in build["writable"]
     assert build["helper"] == "none"
 

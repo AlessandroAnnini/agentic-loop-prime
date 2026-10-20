@@ -78,14 +78,14 @@ flowchart TD
   track -->|light| fbrief
   fbrief --> briefSign["brief sign-off"]
   briefSign --> branch["feature/id from develop"]
-  branch --> build["build: one plan step"]
+  branch --> build["build: plan, then one step"]
   build --> handoff["HANDOFF verify"]
 
   subgraph verify ["Verify, checker"]
     prove["prove"]
     security["security"]
     judge["judge"]
-    prove --> security --> judge
+    prove --> security --> uiReview["ui_review when surface is ui"] --> judge
   end
 
   handoff --> prove
@@ -98,9 +98,11 @@ flowchart TD
   more -->|no| done["program done"]
 ```
 
-Light track writes `brief.md` only. Standard track writes `ux.md`, then `ui.md`, then the brief. Prime has no functional or technical design files.
+Light track writes `brief.md` only. Standard track writes `ux.md`, then `ui.md`, then the brief. The scheduler copies `design_track` from the active feature row when that feature changes. Prime has no functional or technical design files.
 
-Build may edit `app/`. Prove, security, and judge must not.
+Build starts with a `plan` frame. That frame writes `plan.md` and does not commit `app/`. Each later frame implements one substantive step and may edit `app/`. A checkbox that says only `done` is not a step. Prove, security, and judge must not edit `app/`. `build/`, `.gradle/`, and `.kotlin/` are outside the fingerprint. For `surface: ui`, verify stops at `ui_review` after security and before judge until `checks/ui-review.md` names the screens and whether the evidence was the prototype, a device, or both. `--autonomous` does not write that file, and `done --pass` does not close that stop.
+
+When the program reaches `done`, every feature row is `live`, including the last one, and `backlog.yaml` carries the same status. `request-change` errors while the active feature is not `live`, unless the program is `idle`.
 
 ## Frame and close
 
@@ -130,9 +132,9 @@ stateDiagram-v2
   }
 ```
 
-`done --pass` on build hashes `app/` into `checks/fingerprint.json`. On prove it runs ADR `UNIT_TEST_CMD` and `E2E_TEST_CMD`. On security it runs `SECURITY_*` and then the findings-table gate. On judge it writes a checklist, merges to `develop`, and bumps `VERSION`. `--fail` logs only. Neither outcome is a telemetry error by itself.
+`done --pass` on a numbered build step hashes `app/` into `checks/fingerprint.json`. The `plan` substep does not. On prove it runs ADR `UNIT_TEST_CMD` and `E2E_TEST_CMD`. On security it runs `SECURITY_*` and then the findings-table gate. On judge it writes a checklist, merges to `develop`, and bumps `VERSION`. `--fail` logs only. Neither outcome is a telemetry error by itself.
 
-Two fails of the same `{skill}:{substep}` become `STOP blocked_stagnation`. `--autonomous` may reopen design once. It still does not skip verify.
+Two fails of the same `{skill}:{substep}` become `STOP blocked_stagnation`. `--autonomous` may reopen design once. It still does not skip verify or `ui_review`.
 
 ## Commands in the loop
 
@@ -148,7 +150,7 @@ flowchart LR
   human --> next1
 ```
 
-`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after ship. `unattended` without `--agent-cmd` uses the detected editor. Exit 3 only when the editor is unknown, so you can run one skill, `done`, and `continue.sh`. With `--agent-cmd`, the command writes and Prime closes. Verify drift versus the build fingerprint is `DONE fail`, not a stuck lock.
+`doctor` checks the studio. `update` refreshes skills from the kit. `request-change` queues a new slice after the active feature is `live`. `al-prime unattended` is how a program runs until `STOP`. One chat is one frame. The product session does not patch the kit. Without `--agent-cmd`, unattended uses the detected editor. Exit 3 only when the editor is unknown, so you can run one skill, `done`, and `continue.sh`. With `--agent-cmd`, the command writes and Prime closes. Verify drift versus the build fingerprint is `DONE fail`, not a stuck lock.
 
 ## Where to go next
 

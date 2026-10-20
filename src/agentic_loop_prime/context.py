@@ -11,10 +11,10 @@ from agentic_loop_prime.paths import (
     backlog_path,
     brief_path,
     charter_path,
+    dump_yaml,
     landscape_path,
     load_yaml,
     nonempty,
-    plan_path,
     run_state_path,
     text_has,
     ui_path,
@@ -86,9 +86,7 @@ class ProgramContext:
         self._sync_features_from_backlog()
         if not self.active_feature and self.features:
             self.active_feature = str(self.features[0].get("feature_id") or "")
-        row = self._active_row()
-        if row and row.get("design_track"):
-            self.design_track = str(row["design_track"])
+        self.apply_active_design_track()
         self.research_track = _research_track(state, self.research_track)
         stored_brief = state.get("brief_dir")
         stored_app = state.get("app_dir")
@@ -170,12 +168,19 @@ class ProgramContext:
         self.telemetry = tel
         data["telemetry"] = tel
         save_run_state(self.memory_dir, data)
+        sync_backlog_status(self.memory_dir, self.features)
 
     def _active_row(self) -> dict[str, Any] | None:
         for row in self.features:
             if str(row.get("feature_id")) == self.active_feature:
                 return row
         return None
+
+    def apply_active_design_track(self) -> None:
+        """Copy design_track from the active feature row."""
+        row = self._active_row()
+        if row and row.get("design_track"):
+            self.design_track = str(row["design_track"])
 
     def _state(self) -> dict[str, Any]:
         if self.memory_dir is None:
@@ -251,13 +256,10 @@ class ProgramContext:
             return self.plan_complete_flag
         if self.memory_dir is None or not self.active_feature:
             return False
-        path = plan_path(self.memory_dir, self.active_feature)
-        if not nonempty(path):
-            return False
-        text = path.read_text(encoding="utf-8")
-        if "### Step 1" not in text:
-            return False
-        return "- [ ]" not in text
+        from agentic_loop_prime.plan_log import plan_steps_complete
+
+        steps = plan_steps_complete(self.memory_dir, self.active_feature)
+        return bool(steps) and all(steps.values())
 
     def build_logs_ok(self) -> bool:
         if self.build_logs_ok_flag is not None:
@@ -311,11 +313,7 @@ class ProgramContext:
     def all_features_live(self) -> bool:
         if not self.features:
             return True
-        return all(
-            str(r.get("feature_id")) == self.active_feature
-            or str(r.get("status") or "") == "live"
-            for r in self.features
-        )
+        return all(str(r.get("status") or "") == "live" for r in self.features)
 
     def on_advance_feature(self) -> None:
         for row in self.features:
@@ -330,3 +328,30 @@ class ProgramContext:
             "",
         )
         self.active_feature = nxt
+        self.apply_active_design_track()
+
+
+def sync_backlog_status(memory: Path, features: list[dict[str, Any]]) -> None:
+    """Write each feature row's status onto the matching backlog id."""
+    path = backlog_path(memory)
+    backlog = load_yaml(path)
+    feats = backlog.get("features")
+    if not isinstance(feats, list):
+        return
+    statuses = {
+        str(row.get("feature_id")): str(row.get("status") or "")
+        for row in features
+        if isinstance(row, dict) and row.get("feature_id")
+    }
+    changed = False
+    for item in feats:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        status = statuses.get(str(item["id"]))
+        if status is None or str(item.get("status") or "") == status:
+            continue
+        item["status"] = status
+        changed = True
+    if changed:
+        dump_yaml(path, backlog)
+
