@@ -26,9 +26,11 @@ from agentic_loop_prime.paths import (
 from agentic_loop_prime.persist import ensure_program_id, start_value_for
 from agentic_loop_prime.phase_outcomes import should_reopen_for_phase_fail
 from agentic_loop_prime.skill_roots import skill_load_line
+from agentic_loop_prime.turn import helper_for
 from agentic_loop_prime.plan_log import (
     missing_build_log_steps,
     next_incomplete_step,
+    plan_has_substantive_step,
     reopen_plan_step,
     resolve_reopen_step,
 )
@@ -191,6 +193,8 @@ def _write_hint(skill: str, sub: str, feature_id: str) -> str:
             return f"memory/features/{fid}/ui.md"
         return f"memory/features/{fid}/brief.md"
     if skill == "build":
+        if sub == "plan":
+            return f"memory/features/{fid}/plan.md"
         return f"app/ (one plan step {sub or '1'})"
     if skill == "verify":
         if sub == "prove":
@@ -218,6 +222,9 @@ def _delegate_prompt_lines(
     write = _write_hint(skill, sub, fid)
     if write:
         lines.append(f"Write: {write}")
+    if helper_for(skill, ctx.app_dir) == "explore":
+        root = ctx.memory_dir if ctx.memory_dir is not None else Path("memory")
+        lines.append(f"Read {root / 'now' / 'explore.md'}. Do not re-scan the tree.")
     lines.append(f"Close: al-prime done --memory {memory_arg} --pass")
     if skill == "verify" and sub == "security":
         lines.append(
@@ -364,9 +371,36 @@ def _next_design_substep(ctx: ProgramContext) -> str | None:
     return None
 
 
-def _next_build_step(ctx: ProgramContext) -> int | None:
+def _next_build_step(ctx: ProgramContext) -> int | str | None:
     assert ctx.memory_dir is not None
+    if not plan_has_substantive_step(ctx.memory_dir, ctx.active_feature):
+        return "plan"
     return next_incomplete_step(ctx.memory_dir, ctx.active_feature)
+
+
+def _ui_review_stop(
+    ctx: ProgramContext, program: Program, memory: Path, feature_id: str
+) -> Action | None:
+    """Surface ui cannot judge, or ship, until the review file is filled."""
+    row = _feature_row(ctx, feature_id)
+    surface = str((row or {}).get("surface") or "cli").lower()
+    if surface != "ui":
+        return None
+    from agentic_loop_prime.tools import ui_review_path, ui_review_ready
+
+    if ui_review_ready(memory, feature_id):
+        return None
+    return _stop(
+        ctx,
+        program,
+        "ui_review",
+        feature_id=feature_id,
+        path=str(ui_review_path(memory, feature_id)),
+        message=(
+            "Write ## Screens and ## Evidence (prototype, device, or both), then next"
+        ),
+        resume_point=f"STOP ui_review {feature_id}",
+    )
 
 
 def _next_verify_substep(ctx: ProgramContext, leaf: str) -> str:
@@ -603,7 +637,20 @@ def _schedule(
                 resume_point=f"STOP blocked_stagnation {ctx.active_feature}",
             )
 
+    if (
+        program.leaf_state() == "security"
+        and ctx.memory_dir is not None
+        and ctx.active_feature
+        and ctx.security_passed()
+    ):
+        review_stop = _ui_review_stop(
+            ctx, program, ctx.memory_dir, ctx.active_feature
+        )
+        if review_stop is not None:
+            return review_stop
+
     _auto_advance(program)
+    ctx.apply_active_design_track()
     _sync_feature_status(ctx, program)
     state = current_state(program)
     leaf = program.leaf_state()
@@ -824,6 +871,9 @@ def _schedule(
             telemetry.trace_evaluation("prove", True)
             program.send("tests_pass")
             return _schedule(ctx, program, telemetry, depth=depth + 1)
+        review_stop = _ui_review_stop(ctx, program, memory, fid)
+        if review_stop is not None and (sub == "judge" or ctx.security_passed()):
+            return review_stop
         if leaf == "security" and ctx.security_passed() and "security_pass" in _enabled(
             program
         ):

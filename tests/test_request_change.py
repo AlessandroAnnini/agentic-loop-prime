@@ -59,7 +59,7 @@ def _done_studio(tmp_path: Path) -> Path:
     )
     feat = memory / "features" / "todo-cli"
     _write(feat / "brief.md", "# Brief\n\n**Status:** signed\n")
-    _write(feat / "plan.md", "### Step 1 — Scaffold\n\n- [x] done\n")
+    _write(feat / "plan.md", "### Step 1 — Scaffold\n\n- [x] scaffold the module\n")
     return memory
 
 
@@ -102,10 +102,32 @@ def test_request_change_reopens_feature(tmp_path: Path) -> None:
     assert not (state.get("now") or {}).get("resume_point")
     row = next(r for r in state["features"] if r["feature_id"] == "todo-cli")
     assert row["status"] == "designing"
+    backlog = load_yaml(memory / "backlog.yaml")
+    listed = next(item for item in backlog["features"] if item["id"] == "todo-cli")
+    assert listed["status"] == "designing"
     assert int(row.get("autonomous_escalate_count") or 0) == 0
     prove = memory / "features" / "todo-cli" / "checks" / "prove.yaml"
     assert prove.is_file()
     assert load_yaml(prove).get("tests_passed") is False
+
+
+def test_request_change_refuses_open_feature(tmp_path: Path) -> None:
+    memory = _done_studio(tmp_path)
+    state = load_yaml(memory / "run-state.yaml")
+    state["program_state"] = "feature_pipeline/building"
+    for row in state["features"]:
+        if row.get("feature_id") == "todo-cli":
+            row["status"] = "building"
+    _write(memory / "run-state.yaml", yaml.safe_dump(state, sort_keys=False))
+    backlog_before = (memory / "backlog.yaml").read_text(encoding="utf-8")
+    state_before = (memory / "run-state.yaml").read_text(encoding="utf-8")
+    try:
+        request_change(memory, intent="Add export to CSV")
+        raise AssertionError("expected RequestChangeError")
+    except RequestChangeError as exc:
+        assert "todo-cli" in str(exc)
+    assert (memory / "backlog.yaml").read_text(encoding="utf-8") == backlog_before
+    assert (memory / "run-state.yaml").read_text(encoding="utf-8") == state_before
 
 
 def test_request_change_requires_intent_or_id(tmp_path: Path) -> None:

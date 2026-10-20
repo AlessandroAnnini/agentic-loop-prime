@@ -7,11 +7,13 @@ import os
 import shlex
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from agentic_loop_prime.context import ProgramContext
 from agentic_loop_prime.done import CloseError, close_frame
 from agentic_loop_prime.persist import load_run_state
+from agentic_loop_prime.runtime import adapter_command, detect_runtime
 from agentic_loop_prime.schedule import Action, next_frame, prompt_block
 from agentic_loop_prime.telemetry import LoopTelemetry, OpenTelemetryListener
 from agentic_loop_prime.turn import (
@@ -90,7 +92,16 @@ def _write_action_files(
     )
     policy_path = now / "next-policy.json"
     policy_path.write_text(
-        json.dumps(turn_policy(action.skill, action.substep), indent=2) + "\n",
+        json.dumps(
+            turn_policy(
+                action.skill,
+                action.substep,
+                app_dir=app_dir,
+                memory_dir=memory,
+            ),
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return prompt_path, action_path, policy_path
@@ -129,10 +140,15 @@ def run_unattended(
     max_turns: int = 50,
     agent_cmd: str = "",
     telemetry: LoopTelemetry | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> int:
     memory = Path(memory).resolve()
     brief = Path(brief_dir).resolve() if brief_dir else None
     app = Path(app_dir).resolve() if app_dir else None
+    if not agent_cmd:
+        runtime = detect_runtime(os.environ if environ is None else environ)
+        if runtime != "unknown":
+            agent_cmd = adapter_command(runtime)
     budget_once = loop_budget
     sticky = autonomous
     turns = 0
@@ -191,6 +207,12 @@ def run_unattended(
                 print(
                     "AGENT_NEEDED: run one skill session using "
                     f"{prompt_path} then re-invoke via {continue_path}."
+                )
+                print(
+                    "Or pass --agent-cmd with one of: "
+                    "bash scripts/agent-cursor.sh, "
+                    "bash scripts/agent-claude.sh, "
+                    "bash scripts/agent-vscode.sh."
                 )
                 return 3
             before = app_digest(app)

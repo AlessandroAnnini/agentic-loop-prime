@@ -111,18 +111,22 @@ If you are the agent in the session, the boot protocol is [AGENTS.md](AGENTS.md)
 
 ## Unattended turns
 
-Default `unattended` still prints `AGENT_NEEDED` and exits 3. You run one skill, then `done`, then `memory/now/continue.sh`.
+Default `unattended` still prints `AGENT_NEEDED` and exits 3 when it cannot tell which editor it is in. You run one skill, then `done`, then `memory/now/continue.sh`.
 
-`--agent-cmd` is the write. Prime closes. Intake and design pass when the Resume write path is nonempty. Build passes when `app/` changed. Verify fails if `app/` drifted from the build fingerprint; it does not run UNIT/E2E on a mutated tree. That fail clears the lock and reopens build.
+When the process is inside Cursor (`TERM_PROGRAM=cursor`, `CURSOR_AGENT`, or `CURSOR_TRACE_ID`), VS Code (`TERM_PROGRAM=vscode` or `VSCODE_PID`, and not Cursor), or Claude Code (`CLAUDECODE` or `CLAUDE_CODE_ENTRYPOINT`), Prime picks that adapter. Cursor wins if more than one matches. `--agent-cmd` still overrides detection.
+
+On a build frame, once `app/` has 30 or more files, the adapter runs a read-only helper first and writes `memory/now/explore.md`. The writer then reads that file. Prove, security, and judge do not get a helper. The VS Code extension cannot run a frame by itself. `scripts/agent-vscode.sh` uses the standalone `claude` CLI.
 
 ```bash
 uv run al-prime unattended --memory memory --brief-dir brief --app-dir app \
   --autonomous --agent-cmd 'bash scripts/agent-claude.sh'
 ```
 
-`scripts/agent-claude.sh` runs `claude -p` and does not call `done`. Charter and brief STOPs stay `PAUSE`. `--autonomous` skips those sign-off gates; it is not a substitute for `--agent-cmd`. VS Code Agent can follow Resume in the folder. It is not this closer.
+The same loop with no `--agent-cmd` uses the detected editor. `scripts/agent-cursor.sh`, `scripts/agent-claude.sh`, and `scripts/agent-vscode.sh` are the explicit commands. None of them call `done`. Charter and brief STOPs stay `PAUSE`. `--autonomous` skips those sign-off gates.
 
-Each frame writes `memory/now/next-policy.json` (`ALP_POLICY_FILE`). `app_writable` is true only for build. Adapters read that file; Prime does not sandbox the process.
+`--agent-cmd` is the write. Prime closes. Intake and design pass when the Resume write path is nonempty. Build passes when `app/` changed. Verify fails if `app/` drifted from the build fingerprint; it does not run UNIT/E2E on a mutated tree. That fail clears the lock and reopens build.
+
+Each frame writes `memory/now/next-policy.json` (`ALP_POLICY_FILE`). `app_writable` is true only for build. `helper` is `explore` or `none`. Adapters read that file. Prime does not sandbox the process. A helper that changes `app/` fails the frame before the writer starts.
 
 ## Tests
 

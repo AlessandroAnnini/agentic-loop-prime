@@ -73,6 +73,192 @@ def test_charter_review_stop_until_signed(tmp_path: Path) -> None:
     assert action.substep == "brief"
 
 
+def test_live_light_feature_advances_to_standard_ux(tmp_path: Path) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    _write(
+        memory / "run-state.yaml",
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "program_state": "feature_pipeline/live",
+                "active_feature": "domain",
+                "charter_signed": True,
+                "research_track": "none",
+                "lock": None,
+                "loop": {"initial": 20, "remaining": 20},
+                "features": [
+                    {
+                        "feature_id": "domain",
+                        "status": "live",
+                        "design_track": "light",
+                        "surface": "library",
+                    },
+                    {
+                        "feature_id": "app-shell",
+                        "status": "pending",
+                        "design_track": "standard",
+                        "surface": "ui",
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    _write(memory / "charter.md", "# Charter\n\nHabit tracker.\n")
+    _write(
+        memory / "backlog.yaml",
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "features": [
+                    {
+                        "id": "domain",
+                        "design_track": "light",
+                        "surface": "library",
+                    },
+                    {
+                        "id": "app-shell",
+                        "design_track": "standard",
+                        "surface": "ui",
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    _write(memory / "decisions.yaml", "version: 1\nitems: []\n")
+    action = next_frame(memory, brief_dir=brief)
+    assert action.kind == "DELEGATE"
+    assert action.skill == "design"
+    assert action.feature_id == "app-shell"
+    assert action.substep == "ux"
+    state = load_yaml(memory / "run-state.yaml")
+    assert state["active_feature"] == "app-shell"
+
+
+def test_last_feature_is_live_when_program_done(
+    slim_light_memory: Path, tmp_path: Path
+) -> None:
+    from agentic_loop_prime.request_change import request_change
+
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = slim_light_memory
+    state = load_yaml(memory / "run-state.yaml")
+    state["program_state"] = "feature_pipeline/security"
+    for row in state["features"]:
+        if row.get("feature_id") == "todo-cli":
+            row["status"] = "security"
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    action = next_frame(memory, brief_dir=brief)
+    assert action.kind == "STOP"
+    assert action.reason == "idle"
+    assert "program complete" in action.message
+    state = load_yaml(memory / "run-state.yaml")
+    assert state["program_state"] == "done"
+    finished = next(r for r in state["features"] if r["feature_id"] == "todo-cli")
+    assert finished["status"] == "live"
+    backlog = load_yaml(memory / "backlog.yaml")
+    listed = next(item for item in backlog["features"] if item["id"] == "todo-cli")
+    assert listed["status"] == "live"
+
+    queued = request_change(memory, intent="Add export to CSV")
+    follow = next_frame(memory, brief_dir=brief)
+    assert follow.kind == "DELEGATE"
+    assert follow.feature_id == queued.feature_id
+    assert follow.skill == "design"
+    assert follow.feature_id != "todo-cli"
+
+
+def _ready_for_judge(memory: Path, *, surface: str, autonomous: bool = False) -> None:
+    state = load_yaml(memory / "run-state.yaml")
+    state["program_state"] = "feature_pipeline/security"
+    state["now"] = {"autonomous": autonomous}
+    for row in state["features"]:
+        if row.get("feature_id") == "todo-cli":
+            row["status"] = "security"
+            row["surface"] = surface
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    _write(
+        memory / "features" / "todo-cli" / "checks" / "judge.md",
+        "**Verdict:** draft\n",
+    )
+
+
+def test_cli_feature_reaches_judge_without_ui_review(
+    slim_light_memory: Path, tmp_path: Path
+) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    _ready_for_judge(slim_light_memory, surface="cli")
+    action = next_frame(slim_light_memory, brief_dir=brief)
+    assert action.kind == "DELEGATE"
+    assert action.skill == "verify"
+    assert action.substep == "judge"
+
+
+def test_ui_feature_stops_for_review_before_judge(
+    slim_light_memory: Path, tmp_path: Path
+) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = slim_light_memory
+    _ready_for_judge(memory, surface="ui", autonomous=True)
+    action = next_frame(memory, brief_dir=brief)
+    assert action.kind == "STOP"
+    assert action.reason == "ui_review"
+    assert action.feature_id == "todo-cli"
+    review = memory / "features" / "todo-cli" / "checks" / "ui-review.md"
+    assert not review.exists()
+    _write(review, "## Screens\n\nToday\n")
+    state = load_yaml(memory / "run-state.yaml")
+    state["lock"] = None
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    partial = next_frame(memory, brief_dir=brief)
+    assert partial.kind == "STOP"
+    assert partial.reason == "ui_review"
+    _write(review, "## Screens\n\nToday\n\n## Evidence\n\ndevice\n")
+    state = load_yaml(memory / "run-state.yaml")
+    state["lock"] = None
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    follow = next_frame(memory, brief_dir=brief)
+    assert follow.kind == "DELEGATE"
+    assert follow.skill == "verify"
+    assert follow.substep == "judge"
+
+
+def test_passed_judge_still_waits_for_ui_review(
+    slim_light_memory: Path, tmp_path: Path
+) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = slim_light_memory
+    state = load_yaml(memory / "run-state.yaml")
+    state["program_state"] = "feature_pipeline/security"
+    for row in state["features"]:
+        if row.get("feature_id") == "todo-cli":
+            row["status"] = "security"
+            row["surface"] = "ui"
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    action = next_frame(memory, brief_dir=brief)
+    assert action.kind == "STOP"
+    assert action.reason == "ui_review"
+    assert load_yaml(memory / "run-state.yaml")["program_state"] != "done"
+
+
 def test_light_build_no_ux_ui(tmp_path: Path) -> None:
     brief = tmp_path / "brief"
     brief.mkdir()
@@ -116,6 +302,55 @@ def test_light_build_no_ux_ui(tmp_path: Path) -> None:
     assert not (feat / "ui.md").exists()
 
 
+def test_next_without_plan_delegates_plan(tmp_path: Path) -> None:
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    _write(
+        memory / "run-state.yaml",
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "program_state": "idle",
+                "active_feature": "todo-cli",
+                "charter_signed": True,
+                "research_track": "none",
+                "lock": None,
+                "loop": {"initial": 20, "remaining": 20},
+                "features": [
+                    {
+                        "feature_id": "todo-cli",
+                        "status": "pending",
+                        "design_track": "light",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    _write(memory / "charter.md", "# Charter\n\nTodo CLI.\n")
+    _write(
+        memory / "backlog.yaml",
+        "version: 1\nfeatures:\n  - id: todo-cli\n    design_track: light\n",
+    )
+    feat = memory / "features" / "todo-cli"
+    _write(feat / "brief.md", "# Brief\n\n**Status:** signed\n")
+    action = next_frame(memory, brief_dir=brief)
+    assert action.kind == "DELEGATE"
+    assert action.skill == "build"
+    assert action.substep == "plan"
+    _write(feat / "plan.md", "### Step 1\n\n- [x] done\n")
+    state = load_yaml(memory / "run-state.yaml")
+    state["lock"] = None
+    (memory / "run-state.yaml").write_text(
+        yaml.safe_dump(state, sort_keys=False), encoding="utf-8"
+    )
+    again = next_frame(memory, brief_dir=brief)
+    assert again.kind == "DELEGATE"
+    assert again.substep == "plan"
+
+
 def test_build_log_gap_stops_handoff(tmp_path: Path) -> None:
     brief = tmp_path / "brief"
     brief.mkdir()
@@ -150,7 +385,7 @@ def test_build_log_gap_stops_handoff(tmp_path: Path) -> None:
     )
     feat = memory / "features" / "todo-cli"
     _write(feat / "brief.md", "# Brief\n\n**Status:** signed\n")
-    _write(feat / "plan.md", "### Step 1 — Scaffold\n\n- [x] done\n")
+    _write(feat / "plan.md", "### Step 1 — Scaffold\n\n- [x] scaffold the module\n")
     _write(feat / "log.jsonl", "{}\n")
     action = next_frame(memory, brief_dir=brief)
     assert action.kind == "STOP"
@@ -366,3 +601,32 @@ def test_prompt_block_handoff_loads_verify() -> None:
     )
     assert "Load skill: .agents/skills/prime-verify/SKILL.md" in text
     assert "Close:" not in text
+
+
+def test_prompt_block_explore_only_on_large_build(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    app.mkdir()
+    for i in range(30):
+        (app / f"f{i}.py").write_text("x = 1\n", encoding="utf-8")
+    memory = tmp_path / "memory"
+    memory.mkdir()
+    ctx = ProgramContext(memory_dir=memory, app_dir=app)
+    text = prompt_block(
+        Action(kind="DELEGATE", skill="build", feature_id="todo", substep="1"),
+        ctx,
+        "building",
+    )
+    assert "Do not re-scan the tree." in text
+    assert "explore.md" in text
+    prove = prompt_block(
+        Action(kind="DELEGATE", skill="verify", feature_id="todo", substep="prove"),
+        ctx,
+        "verifying",
+    )
+    assert "explore.md" not in prove
+    handoff = prompt_block(
+        Action(kind="HANDOFF", skill="verify", feature_id="todo"),
+        ctx,
+        "building",
+    )
+    assert "explore.md" not in handoff

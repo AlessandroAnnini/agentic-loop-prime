@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -111,6 +112,40 @@ def security_gate(memory: Path, feature_id: str) -> bool:
 
 def judge_gate(memory: Path, feature_id: str) -> bool:
     return text_has(judge_path(memory, feature_id), VERDICT_PASS)
+
+
+_UI_SECTION = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_UI_EVIDENCE = frozenset({"prototype", "device", "both"})
+
+
+def ui_review_path(memory: Path, feature_id: str) -> Path:
+    return memory / "features" / feature_id / "checks" / "ui-review.md"
+
+
+def ui_review_ready(memory: Path, feature_id: str) -> bool:
+    """True when Screens and Evidence are filled.
+
+    Evidence must name prototype, device, or both.
+    """
+    path = ui_review_path(memory, feature_id)
+    if not path.is_file():
+        return False
+    sections: dict[str, list[str]] = {}
+    current = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = _UI_SECTION.match(line)
+        if match:
+            current = match.group(1).strip().lower()
+            sections.setdefault(current, [])
+            continue
+        if current:
+            sections[current].append(line)
+    screens = "\n".join(sections.get("screens", [])).strip()
+    evidence = "\n".join(sections.get("evidence", [])).strip().lower()
+    if not screens or not evidence:
+        return False
+    words = set(re.findall(r"[a-z]+", evidence))
+    return bool(words & _UI_EVIDENCE)
 
 
 def _require_app(ctx_app: Path | None) -> Path:

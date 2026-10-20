@@ -51,7 +51,7 @@ def test_unattended_emits_invoke_agent(tmp_path: Path) -> None:
     memory = tmp_path / "memory"
     provider, exporter = _provider()
     listener = OpenTelemetryListener(tracer=provider.get_tracer("unattended"))
-    code = run_unattended(memory, brief_dir=brief, telemetry=listener)
+    code = run_unattended(memory, brief_dir=brief, telemetry=listener, environ={})
     assert code == 3
     roots = [s for s in exporter.get_finished_spans() if s.name == "invoke_agent"]
     assert roots

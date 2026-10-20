@@ -9,25 +9,61 @@ from pathlib import Path
 from agentic_loop_prime.paths import log_path, nonempty, plan_path
 
 PLAN_STEP_HEADER = re.compile(r"^###\s+Step\s+(\d+)\b", re.MULTILINE)
-CHECKBOX = re.compile(r"^-\s*\[([ xX])\]", re.MULTILINE)
+CHECKBOX_BODY = re.compile(r"^-\s*\[([ xX])\][ \t]*(.*?)\s*$", re.MULTILINE)
+
+
+def checkbox_lines(body: str) -> list[tuple[str, str]]:
+    return [(mark, text.strip()) for mark, text in CHECKBOX_BODY.findall(body)]
+
+
+def line_is_substantive(text: str) -> bool:
+    """A checkbox counts when its text is more than the word ``done``."""
+    return bool(text) and text.lower() != "done"
+
+
+def body_is_substantive(body: str) -> bool:
+    return any(line_is_substantive(text) for _, text in checkbox_lines(body))
+
+
+def body_is_complete(body: str) -> bool:
+    lines = checkbox_lines(body)
+    if not lines:
+        return False
+    if not all(mark.lower() == "x" for mark, _ in lines):
+        return False
+    return body_is_substantive(body)
+
+
+def _plan_text(memory: Path, feature_id: str) -> str:
+    path = plan_path(memory, feature_id)
+    if not nonempty(path):
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _step_sections(text: str) -> dict[int, str]:
+    if not text.strip() or not PLAN_STEP_HEADER.search(text):
+        return {}
+    sections: dict[int, str] = {}
+    parts = PLAN_STEP_HEADER.split(text)
+    for i in range(1, len(parts), 2):
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        sections[int(parts[i])] = body
+    return sections
 
 
 def plan_steps_complete(memory: Path, feature_id: str) -> dict[int, bool]:
-    path = plan_path(memory, feature_id)
-    if not nonempty(path):
-        return {}
-    text = path.read_text(encoding="utf-8")
-    found = sorted({int(m) for m in PLAN_STEP_HEADER.findall(text)})
-    if not found:
-        return {}
-    complete: dict[int, bool] = {n: False for n in found}
-    parts = PLAN_STEP_HEADER.split(text)
-    for i in range(1, len(parts), 2):
-        num = int(parts[i])
-        body = parts[i + 1] if i + 1 < len(parts) else ""
-        boxes = CHECKBOX.findall(body)
-        complete[num] = bool(boxes) and all(m.lower() == "x" for m in boxes)
-    return complete
+    return {
+        num: body_is_complete(body)
+        for num, body in _step_sections(_plan_text(memory, feature_id)).items()
+    }
+
+
+def plan_has_substantive_step(memory: Path, feature_id: str) -> bool:
+    return any(
+        body_is_substantive(body)
+        for body in _step_sections(_plan_text(memory, feature_id)).values()
+    )
 
 
 def next_incomplete_step(memory: Path, feature_id: str) -> int | None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -24,7 +23,7 @@ def test_unattended_agent_needed_intake(tmp_path: Path) -> None:
     brief = tmp_path / "brief"
     brief.mkdir()
     memory = tmp_path / "memory"
-    code = run_unattended(memory, brief_dir=brief)
+    code = run_unattended(memory, brief_dir=brief, environ={})
     assert code == 3
     prompt = memory / "now" / "next-prompt.md"
     assert prompt.is_file()
@@ -36,6 +35,7 @@ def test_unattended_agent_needed_intake(tmp_path: Path) -> None:
     policy = json.loads((memory / "now" / "next-policy.json").read_text(encoding="utf-8"))
     assert policy["skill"] == "intake"
     assert policy["app_writable"] is False
+    assert policy["helper"] == "none"
     assert "memory/**" in policy["writable"]
 
 
@@ -64,7 +64,7 @@ def test_unattended_autonomous_skips_charter_review(tmp_path: Path) -> None:
             sort_keys=False,
         ),
     )
-    code = run_unattended(memory, brief_dir=brief, autonomous=True)
+    code = run_unattended(memory, brief_dir=brief, autonomous=True, environ={})
     assert code == 3
     state = load_yaml(memory / "run-state.yaml")
     assert state.get("charter_signed") is True
@@ -94,7 +94,16 @@ def test_unattended_done_exits_zero(tmp_path: Path) -> None:
     assert code == 0
 
 
-def test_cli_unattended_exit_3(tmp_path: Path) -> None:
+def test_cli_unattended_exit_3(tmp_path: Path, monkeypatch) -> None:
+    for key in (
+        "TERM_PROGRAM",
+        "CURSOR_AGENT",
+        "CURSOR_TRACE_ID",
+        "VSCODE_PID",
+        "CLAUDECODE",
+        "CLAUDE_CODE_ENTRYPOINT",
+    ):
+        monkeypatch.delenv(key, raising=False)
     brief = tmp_path / "brief"
     brief.mkdir()
     memory = tmp_path / "memory"
@@ -334,62 +343,35 @@ def test_unattended_continue_sh_includes_agent_cmd(tmp_path: Path) -> None:
     assert "true" in text
 
 
-def test_agent_claude_requires_claude_and_prompt(tmp_path: Path) -> None:
+def test_agent_claude_script_execs_adapter() -> None:
     script = Path(__file__).resolve().parents[1] / "scripts" / "agent-claude.sh"
-    empty = tmp_path / "empty-bin"
-    empty.mkdir()
-    prompt = tmp_path / "prompt.md"
-    prompt.write_text("do the skill\n", encoding="utf-8")
-    env = {**os.environ, "PATH": str(empty), "ALP_PROMPT_FILE": str(prompt)}
-    missing_bin = subprocess.run(
-        ["/bin/bash", str(script)],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert missing_bin.returncode != 0
-    assert "claude" in missing_bin.stderr.lower()
-    stub = empty / "claude"
-    stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    stub.chmod(0o755)
-    no_prompt = subprocess.run(
-        ["/bin/bash", str(script)],
-        env={**os.environ, "PATH": str(empty)},
-        capture_output=True,
-        text=True,
-    )
-    assert no_prompt.returncode != 0
-    assert "ALP_PROMPT_FILE" in no_prompt.stderr
+    text = script.read_text(encoding="utf-8")
+    assert "agentic_loop_prime.adapters claude" in text
+    assert "--resume" not in text
 
 
-def test_agent_claude_denies_app_when_not_writable(tmp_path: Path) -> None:
-    script = Path(__file__).resolve().parents[1] / "scripts" / "agent-claude.sh"
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    log = tmp_path / "claude-args.txt"
-    stub = bin_dir / "claude"
-    stub.write_text(
-        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > {log}\n",
-        encoding="utf-8",
+def test_unattended_detects_cursor_without_agent_cmd(tmp_path: Path, monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_run(cmd, shell=True, env=None):
+        calls.append(cmd)
+
+        class Proc:
+            returncode = 1
+
+        return Proc()
+
+    monkeypatch.setattr("agentic_loop_prime.unattended.subprocess.run", fake_run)
+    brief = tmp_path / "brief"
+    brief.mkdir()
+    memory = tmp_path / "memory"
+    code = run_unattended(
+        memory,
+        brief_dir=brief,
+        max_turns=1,
+        environ={"CURSOR_AGENT": "1"},
     )
-    stub.chmod(0o755)
-    prompt = tmp_path / "prompt.md"
-    prompt.write_text("do the skill\n", encoding="utf-8")
-    policy = tmp_path / "policy.json"
-    policy.write_text('{"app_writable": false}\n', encoding="utf-8")
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:/bin:/usr/bin",
-        "ALP_PROMPT_FILE": str(prompt),
-        "ALP_POLICY_FILE": str(policy),
-    }
-    proc = subprocess.run(
-        ["/bin/bash", str(script)],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0
-    args = log.read_text(encoding="utf-8")
-    assert "-p" in args
-    assert "Edit(app/**)" in args
+    assert code != 3
+    assert calls
+    assert "agentic_loop_prime.adapters" in calls[0]
+    assert "cursor" in calls[0]

@@ -14,6 +14,18 @@ You may run commands and write `memory/features/*/checks`. You must not change p
 
 Substeps: `prove` → `security` → `judge`.
 
+For `surface: ui`, after security and before judge, `next` prints `STOP ui_review`. Write `memory/features/<id>/checks/ui-review.md` with two sections, then run `next` again. `--autonomous` does not write this file. `done --pass` is not the close for this stop.
+
+```markdown
+## Screens
+Today, Habits
+
+## Evidence
+device
+```
+
+`## Screens` names what you compared. `## Evidence` says `prototype`, `device`, or `both`.
+
 1. Confirm you did not change `app/`
 2. Fill ADR-0005 commands if prove/security has nothing to run
 3. On security: `--pass` runs `SECURITY_*` and writes `checks/tools.json`. Command failure is `DONE fail` (lock cleared). When commands pass and `security.md` is missing, the harness seeds the kit template (`**Status:** draft`, `**Secrets clean:** pending`). An unfilled report is `ERROR` and the lock stays so you can triage and `--pass` again. The harness never stamps `**Status:** pass`.
